@@ -7,7 +7,7 @@
 - [Instruction](#instruction)
 - [Endpoints](#endpoints)
     - [register](#register)
-        - [register](#get)
+        - [GET](#get)
 
 ## Instruction
 
@@ -32,3 +32,4 @@ Server is bind to local `http://127.0.0.1:8000/`
 ##### GET
 
 Returns json with unique UUID, and insert such a user to a database.
+![](.README_images/uuid.png)
