@@ -1,10 +1,11 @@
-from typing import Union
+from typing import Union, Optional
 
 from django.core.handlers.wsgi import WSGIRequest
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 
-from ynvest_tube_server.ynvest_tube_app.models import User, Auction
+from ynvest_tube_server.auction_generator import generate_auction
+from ynvest_tube_server.ynvest_tube_app.models import User, Auction, Rent
 
 
 def register_user(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
@@ -17,7 +18,6 @@ def register_user(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
         new_user.save()
         data = {
             "summary": "Register new user",
-            "operationId": "registerUser",
             "userId": new_user.id,
         }
         return JsonResponse(data, status=200)
@@ -33,7 +33,6 @@ def get_users(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
         qs = User.objects.all()
         data = {
             "summary": "Get all users",
-            "operationId": "getUsers",
             "users": [u.serialize() for u in qs]
         }
         return JsonResponse(data, status=200, safe=False)
@@ -51,11 +50,30 @@ def get_user(request: WSGIRequest, user_id: str) -> Union[JsonResponse, HttpResp
     if request.method == "GET":
         data = {
             "summary": "Get user",
-            "operationId": "getUser",
             "user": qs.serialize()
         }
         return JsonResponse(data, status=200)
     return render(request, "Error Pages/403.html", status=403)
+
+
+def get_user_details(request: WSGIRequest, user_id: str) -> Optional[Union[JsonResponse, HttpResponse]]:
+    if request.method == "GET":
+        # auctions in which user participate at the moment
+        u = User.objects.all().filter(id=user_id).first()
+        auctions = Auction.objects.all().filter(last_bidder=u, state="active")
+        # all user transactions
+        rents = Rent.objects.filter(user=u)
+        data = {
+            "summary": "Get user actual auctions and all his rents.",
+            "attendingAuctions": [a.serialize for a in auctions],  # totally wrong name need to be changed
+            "cash": u.cash,
+            "rents": [r.serialize() for r in rents],
+            # "actualRents": [r.serialize() for r in rents.select_related("auction").filter()],
+            # "expiredRents": [r.serialize() for r in rents.filter()]
+        }
+        return JsonResponse(data, status=200)
+
+    return None
 
 
 def get_auctions(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
@@ -63,12 +81,14 @@ def get_auctions(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
     List all auctions existed in database.
 
     """
+    generate_auction()
     if request.method == "GET":
-        users = User.objects.all()
+        qs = Auction.objects.all()
         data = {
             "summary": "Get all auctions",
-            "operationId": "getAuctions",
-            "auctions": [u.serialize() for u in users]
+            "auctions": [a.serialize() for a in qs],
+            "activeAuctions": [a.serialize() for a in qs.filter(state="active")],
+            "inactiveAuctions": [a.serialize() for a in qs.filter(state="inactive")],
         }
         return JsonResponse(data, status=200, safe=False)
     return render(request, "Error Pages/405.html", status=405)
@@ -89,19 +109,34 @@ def get_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
     if request.method == "GET":
         data = {
             "summary": "Get auction",
-            "operationId": "getAuction",
             "auction": qs.first().serialize()
         }
         return JsonResponse(data, status=200)
 
     elif request.method == "POST":
-        qs.update(last_bidder=request.POST.get("Bidder"),
-                  bet_value=request.POST.get("Value"))
+        u = User.objects.all().filter(id=request.POST.get("user_id"))
+        qs.update(last_bidder=u,
+                  bet_value=int(request.POST.get("value")))
         data = {
             "summary": "Bet on auction",
-            "operationId": "betAuction",
-            "user": qs.serialize()
+            "auction": qs.first().serialize()
         }
         return JsonResponse(data, status=200)
 
+    return render(request, "Error Pages/403.html", status=403)
+
+
+def close_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
+    if request.method == "GET":
+        auction = Auction.objects.all().filter(id=auction_id)
+        auction.update(state="inactive")
+        auction = auction.first()
+
+        rent = Rent(user=auction.last_bidder, auction=auction)
+        data = {
+            "summary": "Auction closed. Transaction saved in database.",
+            "auction": auction.serialize(),
+            "rent": rent.serialize()
+        }
+        return JsonResponse(data, status=200)
     return render(request, "Error Pages/403.html", status=403)

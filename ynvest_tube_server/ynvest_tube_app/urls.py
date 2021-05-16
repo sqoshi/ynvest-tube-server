@@ -18,9 +18,11 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path('users', views.get_users, name='get_users'),
     path('users/register', views.register_user, name='register_user'),
     path('users/<str:user_id>', views.get_user, name='get_user'),
-    path('users', views.get_users, name='get_users'),
-    path('auctions/<int:auction_id>', views.get_auction, name='get_auction'),
+    path('users/<str:user_id>/details', views.get_user_details, name='get_user_details'),
     path('auctions', views.get_auctions, name='get_auctions'),
+    path('auctions/<int:auction_id>', views.get_auction, name='get_auction'),
+    path('auctions/<int:auction_id>/close', views.close_auction, name='close_auction'),
 ]

@@ -1,0 +1,193 @@
+swagger: "2.0"
+info:
+  version: 1.0.0
+  title: YnvestTubeApi
+host: "127.0.0.1:8000"
+consumes:
+  - "application/json"
+produces:
+  - "application/json"
+paths:
+  /users:
+    get:
+      summary: 'Get all users'
+      tags:
+        - user
+      responses:
+        '200':
+          description: 'Users list retrieved successfully'
+          schema:
+            $ref: '#/definitions/UserList'
+        '403':
+          description: Bad user id
+  /users/register:
+    get:
+      summary: "Register new user"
+      tags:
+        - user
+      responses:
+        "200":
+          description: 'User id for an app to use in future calls'
+          schema:
+            $ref: '#/definitions/UserId'
+  /users/{userId}:
+    get:
+      summary: "Get user's overall info cash, account creation date."
+      tags:
+        - user
+      parameters:
+        - in: path
+          name: "UserId"
+          required: true
+          schema:
+            $ref: '#/definitions/UserId'
+      responses:
+        '200':
+          description: 'User data'
+          schema:
+            $ref: '#/definitions/UserDetails'
+        '403':
+          description: Bad user id
+  /users/{UserId}/details:
+    get:
+      summary: "Get user's actual auctions and all rentals/ transactions."
+      tags:
+        - user
+      parameters:
+        - in: path
+          name: "UserId"
+          required: true
+          schema:
+            $ref: '#/definitions/UserId'
+      responses:
+        '200':
+          description: 'User detailed data'
+          schema:
+            $ref: '#/definitions/UserDetails'
+        '403':
+          description: Bad user id
+  /auctions:
+    get:
+      summary: 'Get active and inactive auctions'
+      tags:
+        - auction
+      responses:
+        '200':
+          description: 'Auction list retrieved successfully'
+          schema:
+            $ref: '#/definitions/AuctionList'
+        '403':
+          description: Bad user id
+  /auctions/{auctionId}:
+    get:
+      summary: 'Get auction details'
+      tags:
+        - auction
+      parameters:
+        - in: path
+          name: "auctionId"
+          required: true
+          type: integer
+      responses:
+        '200':
+          description: 'Auction retrieved successfully'
+          schema:
+            $ref: '#/definitions/AuctionDetails'
+        '403':
+          description: Bad auction id
+    post:
+      summary: 'Bet on auction'
+      tags:
+        - auction
+      parameters:
+        - in: path
+          name: "auctionId"
+          required: true
+          type: integer
+        - in: body
+          name: "UserId"
+        - in: body
+          name: "BetValue"
+          type: integer
+      responses:
+        '200':
+          description: 'Bet successful'
+          schema:
+            $ref: '#/definitions/AuctionDetails'
+        '400':
+          description: Not enough value in bet
+        '403':
+          description: Bad user id
+        '404':
+          description: Auction already ended
+
+  /auctions/{auctionId}/close:
+    get:
+      summary: 'Close auction'
+      tags:
+        - auction
+      parameters:
+        - in: path
+          name: "auctionId"
+          required: true
+          type: integer
+      responses:
+        '200':
+          description: 'Auction closed successfully'
+        '403':
+          description: Bad auction id
+
+definitions:
+  UserId:
+    type: string
+    example: "729b8942-b579-11eb-8529-0242ac130003"
+  User:
+    type: object
+    properties:
+      id:
+        type: UUID ( string)
+      cash:
+        type: integer
+      creation_date:
+        type: DateTime
+  UserDetails:
+    type: object
+    properties:
+      cash:
+        type: integer
+      attendingAuctions:
+        type: array
+        items:
+          type: Auction
+      rents:
+        type: array
+        items:
+          type: Rent
+  Auction:
+    type: object
+    properties:
+      id:
+        type: integer
+      state:
+        type: Enum(active, inactive)
+      starting_price:
+        type: integer
+      last_bet_value:
+        type: integer
+      last_bidder:
+        type: User
+      video:
+        type: Video
+      rental_duration:
+        type: DateTimeDelta
+      rental_expiration_date:
+        type: DateTime
+  Rent:
+    type: object
+    properties:
+      id:
+        type: integer
+      auction:
+        type: Auction
+      user:
+        type: User
