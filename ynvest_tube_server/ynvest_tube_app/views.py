@@ -133,6 +133,7 @@ def close_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
         auction = auction.first()
 
         rent = Rent(user=auction.last_bidder, auction=auction)
+        rent.save()
         data = {
             "summary": "Auction closed. Transaction saved in database.",
             "auction": auction.serialize(),
