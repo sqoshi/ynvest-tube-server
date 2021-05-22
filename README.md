@@ -6,8 +6,6 @@
 
 - [Instruction](#instruction)
 - [Endpoints](#endpoints)
-    - [register](#register)
-        - [GET](#get)
 
 ## Instruction
 

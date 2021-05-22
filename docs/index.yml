@@ -30,7 +30,7 @@ paths:
           description: 'User id for an app to use in future calls'
           schema:
             $ref: '#/definitions/UserId'
-  /users/{userId}:
+  /user:
     get:
       summary: "Get user's overall info cash, account creation date."
       tags:
@@ -48,7 +48,7 @@ paths:
             $ref: '#/definitions/UserDetails'
         '403':
           description: Bad user id
-  /users/{UserId}/details:
+  /user/details:
     get:
       summary: "Get user's actual auctions and all rentals/ transactions."
       tags:
@@ -172,7 +172,7 @@ definitions:
         type: Enum(active, inactive)
       starting_price:
         type: integer
-      last_bet_value:
+      last_bid_value:
         type: integer
       last_bidder:
         type: User
