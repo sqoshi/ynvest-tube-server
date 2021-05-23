@@ -25,4 +25,7 @@ urlpatterns = [
     path('auctions', views.get_auctions, name='get_auctions'),
     path('auctions/<int:auction_id>', views.get_auction, name='get_auction'),
     path('auctions/<int:auction_id>/close', views.close_auction, name='close_auction'),
+    path('videos', views.get_videos, name='get_videos'),
+    path('rents', views.get_rents, name='get_rents'),
+
 ]

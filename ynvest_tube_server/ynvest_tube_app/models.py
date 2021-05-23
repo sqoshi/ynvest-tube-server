@@ -33,9 +33,12 @@ class Video(models.Model, Serializable):
 
     """
     id = models.AutoField(primary_key=True)
-    name = models.TextField(null=True)
+    title = models.TextField(null=True)
+    description = models.TextField(null=True)
     link = models.TextField(null=False)
-    views = models.IntegerField(null=False)
+    views = models.IntegerField(null=True, default=None)
+    likes = models.IntegerField(null=True, default=None)
+    dislikes = models.IntegerField(null=True, default=None)
     rented = models.BooleanField(default=False)
 
 
@@ -62,17 +65,9 @@ class Auction(models.Model, DirtyFieldsMixin, Serializable):
     video = models.ForeignKey(Video, on_delete=CASCADE)
     rental_duration = models.DurationField()
     # rental_begin_date = models.DateTimeField(auto_now=True)
+    auction_expiration_date = models.DateTimeField(default=datetime.datetime.now() - datetime.timedelta(days=10))
     rental_expiration_date = models.DateTimeField()
-
-    def save(self, *args, **kwargs):
-        if self.is_dirty() and 'state' in self.get_dirty_fields():
-            print(type(self.get_dirty_fields()))
-            print(self.get_dirty_fields())
-            auctions_quantity = Auction.objects.filter(state="active").count()
-            while auctions_quantity < 10:
-                generate_auction()
-        super().save(*args, **kwargs)
-        print(Auction.objects.filter(state="active").count())
+    video_views_on_sold = models.IntegerField(null=True, default=None)
 
 
 class Rent(models.Model, DirtyFieldsMixin, Serializable):
@@ -83,28 +78,4 @@ class Rent(models.Model, DirtyFieldsMixin, Serializable):
     id = models.AutoField(primary_key=True)
     auction = models.ForeignKey(Auction, on_delete=CASCADE)
     user = models.ForeignKey(User, on_delete=CASCADE)
-
-    def save(self, *args, **kwargs):
-        print(self.get_dirty_fields())
-        print(self.get_dirty_fields().get('auction'))
-        # change
-        super().save(*args, **kwargs)
-
-
-#########################################################33
-
-def generate_auction():
-    print(f"Generating auction")
-    # v = Video(name=f"video_{datetime.date.today()}",
-    #           link=f"video_link_{datetime.date.today()}",
-    #           views=100000)
-    video_all = Video.objects.all().filter(rented=False)
-    v = random.choice(video_all)
-
-    # v.save()
-    random_time_delta = datetime.timedelta(days=random.randint(0, 7), hours=random.randint(0, 24))
-    auction = Auction(starting_price=random.randint(200, 5000),
-                      video=v,
-                      rental_duration=random_time_delta,
-                      rental_expiration_date=datetime.datetime.now() + random_time_delta)
-    auction.save()
+    state = models.TextField(default="active", choices=(("ACTIVE", "active"), ("INACTIVE", "inactive")))
