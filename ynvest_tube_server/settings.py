@@ -133,9 +133,9 @@ SWAGGER_YAML_FILENAME = '/docs/index.yml'
 
 # celery
 CELERY_BROKER_URL = 'redis://localhost:6379'
-CELERY_TIMEZONE = "Europe/Warsaw"
+# CELERY_TIMEZONE = "Europe/Warsaw"
 CELERY_TASK_TRACK_STARTED = True
-CELERY_TASK_TIME_LIMIT = 30 * 60
+# CELERY_TASK_TIME_LIMIT = 30 * 60
 
 # CELERY_BEAT_SCHEDULE = {
 #     'ynvest_tube_app': {

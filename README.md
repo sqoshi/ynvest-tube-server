@@ -4,10 +4,12 @@
 
 <hr>
 
-- [Instruction](#instruction)
+- [Installation](#installation)
+- [Launch](#launch)
+- [Periodic Tasks](#periodic-tasks)
 - [Endpoints](#endpoints)
 
-## Instruction
+## Installation
 
 <hr>
 Redis:
@@ -15,20 +17,26 @@ Redis:
 - `sudo apt-get install redis`
 
 YoutubeApi
-
 - Add file `api_config.py` in `../ynvest_tube_server/ynvest_tube_server/` with variable `api_key='xxxxxxxxxxxxxxxxxxx'`
+
+![](.README_images/apikey.png)
 
 Requirements
 
 - `pip install -r requirements.txt`
 
-Migrations
+
+Migrations (Call migrations, just for sure)
 
 - `./manage.py makemigrations`
 
 - `./manage.py migrate`
 
+
+## Launch
+
 Run three terminals in directory containing `manage.py`.
+In each one activate python virutalenv with `source venv/bin/activate`.
 
 1. In first: `celery -A ynvest_tube_server worker -l info -B`
 
@@ -36,11 +44,14 @@ Run three terminals in directory containing `manage.py`.
 
 3. In third: `./manage.py runserver`
 
-``
 
 Server is bind to local `http://127.0.0.1:8000/`
 
+![](.README_images/launch.png)
+
 ## Periodic Tasks
+
+<hr>
 
 Redis used as a machine handling calls for periodic tasks. Task scheduler may be configured with django-admin
 `localhost:8080/admin` interface.

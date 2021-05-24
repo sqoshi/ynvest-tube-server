@@ -1,10 +1,9 @@
 import datetime
-import random
 import uuid
 from typing import Dict
 
 from dirtyfields import DirtyFieldsMixin
-from django.db.models import CASCADE, ForeignKey, Max
+from django.db.models import CASCADE, ForeignKey
 from django.db import models
 
 
