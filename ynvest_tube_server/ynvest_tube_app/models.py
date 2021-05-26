@@ -53,7 +53,7 @@ class User(models.Model, Serializable):
 
 class Auction(models.Model, DirtyFieldsMixin, Serializable):
     """
-    Model represents auctions and stores information about it.
+    Model represents auctions and stores details about it.
 
     """
     id = models.AutoField(primary_key=True)
@@ -81,6 +81,11 @@ class Rent(models.Model, DirtyFieldsMixin, Serializable):
 
 
 class Bids(models.Model):
+    """
+    Stores all bids.
+
+    Using this model we can see the list of users that participated in auction.
+    """
     id = models.AutoField(primary_key=True)
     auction = models.ForeignKey(Auction, on_delete=CASCADE)
     user = models.ForeignKey(User, on_delete=CASCADE)

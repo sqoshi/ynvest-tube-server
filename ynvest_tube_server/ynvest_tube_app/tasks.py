@@ -4,30 +4,49 @@ from typing import List
 
 from ynvest_tube_server import celery_app
 from ynvest_tube_server.settings import youtube
-from ynvest_tube_server.ynvest_tube_app.models import Auction, Video, Rent
+from ynvest_tube_server.ynvest_tube_app.models import Auction, Video, Rent, User
 
 
-def _set_video_rented(video, value=True) -> None:
-    # set video as rented
+def _set_video_rented(video: Video, value=True) -> None:
+    """
+    Set video state as rented
+
+    """
     video.rented = value
     video.save()
 
 
 def _assign_rent(auction: Auction) -> None:
-    # handle rent in system
+    """
+    Handle rent in system
+
+    """
     r = Rent(auction=auction, user=auction.last_bidder)
     r.save()
 
 
-def _settle_user(user, value) -> None:
-    # reduce user cash
+def _settle_user(user: User, value: int) -> None:
+    """
+    Reduce user cash
+
+    """
     user.cash += value
     user.save()
 
 
 @celery_app.task(name='close_expired_auctions')
 def close_expired_auctions() -> None:
-    # very often 1 per 1 s
+    """
+    Periodic task close auctions that the expiry date has passed.
+    by:
+            - changing auction state to inactive
+            - assign auction to winning user by adding rent to Rent table or passing on none participants
+            - charges user wallet
+
+
+    :interval very often 1 per 1 s
+
+    """
     print("Searching for closeable auctions...")
     auctions = Auction.objects.filter(state='active', auction_expiration_date__lte=datetime.datetime.now())
 
@@ -46,7 +65,19 @@ def close_expired_auctions() -> None:
 
 @celery_app.task(name='generate_auction')
 def generate_auction() -> None:
-    # 1 call per 1800 s
+    """
+    Generates random auction with random video.
+
+    auction cost = 1-5 % of current video views
+
+    rent duration = random between 1 hour and 7 days
+
+    each auction lasts 15 minutes
+
+    max auctions = 10
+
+    :interval 1 call per 1800 s
+    """
     active_auctions = Auction.objects.filter(state='active', rental_expiration_date__gt=datetime.datetime.now())
     if len(active_auctions) < 10:
         print(f"Generating auction #{len(Auction.objects.all())} ...")
@@ -54,8 +85,8 @@ def generate_auction() -> None:
         videos_not_rented = Video.objects.all().filter(rented=False)
         v = random.choice(videos_not_rented)
 
-        random_time_delta = datetime.timedelta(days=random.randint(0, 7), hours=random.randint(0, 24))
-        auction = Auction(starting_price=random.randint(200, 5000),
+        random_time_delta = datetime.timedelta(days=random.randint(0, 6), hours=random.randint(1, 24))
+        auction = Auction(starting_price=random.randint(int(1 / 100 * v.views), int(5 / 100 * v.views)),
                           video=v,
                           rental_duration=random_time_delta,
                           auction_expiration_date=datetime.datetime.now() + datetime.timedelta(minutes=15),
@@ -67,7 +98,16 @@ def generate_auction() -> None:
 
 
 def _collect_videos_statistics(objects: List, result_limit: int = 50) -> List:
-    # response limit result is 50, so we need to call api len(video_rows)/50 times
+    """
+    Calls youtube API to collect data about videos statistics in objects list.
+
+    response limit result is 50, so we need to call api len(video_rows)/50 times
+
+    :param objects: list of videos
+    :param result_limit: youtube api limits result rows to 50
+
+    :return: List of dictionaries containing statistics about each video in objects list
+    """
     videos_statistics = []
     iterations_ = len(objects)
 
@@ -82,7 +122,13 @@ def _collect_videos_statistics(objects: List, result_limit: int = 50) -> List:
 
 @celery_app.task(name='update_video_views')
 def update_videos_views() -> None:
-    # 1 call per day
+    """
+    Updates statistics views, likes and dislikes of each video in database via youtube data api v3.
+
+    For now user's cash is being increased by views difference. (rent start, rent end)
+
+    :interval 1 call per day
+    """
     print("Updating videos statistics...")
 
     objects = list(Video.objects.all())
@@ -100,7 +146,11 @@ def update_videos_views() -> None:
 
 @celery_app.task(name='settle_rents')
 def settle_users_rents() -> None:
-    # 1 call per 1 s
+    """
+    When user rent expires it comes to a payday and he gets settled.
+
+    :interval 1 call per 1 s
+    """
     print(f'Settling rents...')
     rents = list(Rent.objects.filter(auction__rental_expiration_date__lte=datetime.datetime.now()))
     for r in rents:

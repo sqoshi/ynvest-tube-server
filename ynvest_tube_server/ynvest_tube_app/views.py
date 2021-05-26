@@ -1,15 +1,18 @@
+import datetime
 import json
-from typing import Union, Optional
+import random
+from typing import Optional, List
 
+import requests
 from django.core.handlers.wsgi import WSGIRequest
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render
+from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt
 from ynvest_tube_server.settings import youtube
 from ynvest_tube_server.ynvest_tube_app.models import User, Auction, Rent, Video, Bids
 
 
-def register_user(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
+def register_user(request: WSGIRequest) -> Optional[HttpResponse]:
     """
     Register new user in database. ( uuid generator)
 
@@ -22,25 +25,10 @@ def register_user(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
             "userId": new_user.id,
         }
         return JsonResponse(data, status=200)
-    return render(request, "Error Pages/405.html", status=405)
+    return HttpResponse(request, status=405)
 
 
-def get_users(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
-    """
-    List all users in database.
-
-    """
-    if request.method == "GET":
-        qs = User.objects.all()
-        data = {
-            "summary": "Get all users",
-            "users": [u.serialize() for u in qs]
-        }
-        return JsonResponse(data, status=200, safe=False)
-    return render(request, "Error Pages/405.html", status=405)
-
-
-def get_user(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
+def get_user(request: WSGIRequest) -> HttpResponse:
     """
     Gets specified user.
 
@@ -55,10 +43,17 @@ def get_user(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
             "user": qs.serialize()
         }
         return JsonResponse(data, status=200)
-    return render(request, "Error Pages/403.html", status=403)
+    return HttpResponse(request, status=403)
 
 
-def get_user_details(request) -> Optional[Union[JsonResponse, HttpResponse]]:
+def get_user_details(request: WSGIRequest) -> Optional[HttpResponse]:
+    """
+    Display detailed data about user
+            - cash
+            - attendingAuctions - all auctions that user actually participate in
+            - rents - history
+
+    """
     if request.method == "GET":
         data = json.loads(request.body)
         user_id = data["UserId"]
@@ -69,24 +64,21 @@ def get_user_details(request) -> Optional[Union[JsonResponse, HttpResponse]]:
         rents = Rent.objects.filter(user=u)
         data = {
             "summary": "Get user actual auctions and all his rents.",
-            "attendingAuctions": [a.serialize for a in auctions],  # totally wrong name need to be changed
             "cash": u.cash,
+            "attendingAuctions": [a.serialize for a in auctions],  # totally wrong name need to be changed
             "rents": [r.serialize() for r in rents],
             # "actualRents": [r.serialize() for r in rents.select_related("auction").filter()],
             # "expiredRents": [r.serialize() for r in rents.filter()]
         }
         return JsonResponse(data, status=200)
+    return HttpResponse(request, status=403)
 
-    return None
 
-
-def get_auctions(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
+def get_auctions(request: WSGIRequest) -> HttpResponse:
     """
     List all auctions existed in database.
 
     """
-    # gen_auc()
-    # insert_youtube_videos('marvel', 'funny dog', 'python', 'nike', 'kotlin')
     if request.method == "GET":
         qs = Auction.objects.all()
         data = {
@@ -95,11 +87,11 @@ def get_auctions(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
             "inactiveAuctions": [a.serialize() for a in qs.filter(state="inactive")],
         }
         return JsonResponse(data, status=200, safe=False)
-    return render(request, "Error Pages/405.html", status=405)
+    return HttpResponse(request, status=405)
 
 
 @csrf_exempt
-def get_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
+def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
     """
     On GET request returns specific auction
 
@@ -111,7 +103,7 @@ def get_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
     """
     qs = Auction.objects.all().filter(id=auction_id)
     if request.method == "GET":
-        auction_bidders = Bids.objects.all().filter(auction=qs.first()).values('user').distinct('user').count()
+        auction_bidders = Bids.objects.all().filter(auction=qs.first()).values('user').distinct().count()
         data = {
             "summary": "Get auction",
             "auctionBidders": int(auction_bidders),
@@ -120,47 +112,55 @@ def get_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
         return JsonResponse(data, status=200)
 
     elif request.method == "POST":
+
+        if qs.first().auction_expiration_date < datetime.datetime.now():
+            # auction already ended
+            return HttpResponse(request, status=404)
+
         data = json.loads(request.body)
         user_id = data["UserId"]
         bid_value = int(data["bidValue"])
         u = User.objects.all().filter(id=user_id)
-        if u.first().cash >= bid_value:
-            b = Bids(qs.first(), u, bid_value)
-            b.save()
-            qs.update(last_bidder=u, last_bid_value=bid_value)
-            data = {
-                "summary": "Bet on auction",
-                "auction": qs.first().serialize()
-            }
-            return JsonResponse(data, status=200)
-        # else no money for bet
+        if len(u) > 0:
+            if u.first().cash >= bid_value:
+                b = Bids(qs.first(), u, bid_value)
+                b.save()
+                qs.update(last_bidder=u, last_bid_value=bid_value)
+                data = {
+                    "summary": "Bet on auction",
+                    "auction": qs.first().serialize()
+                }
+                # success
+                return JsonResponse(data, status=200)
+            else:
+                # not enough money
+                return HttpResponse(request, status=400)
+    # bad auction / user id
+    return HttpResponse(request, status=403)
 
-    return render(request, "Error Pages/403.html", status=403)
 
+#######################################################################################################################
 
-def close_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
+def get_users(request: WSGIRequest) -> HttpResponse:
+    """
+    List all users in database.
+
+    """
     if request.method == "GET":
-        auction = Auction.objects.all().filter(id=auction_id)
-        auction.update(state="inactive")
-        auction = auction.first()
-
-        rent = Rent(user=auction.last_bidder, auction=auction)
-        rent.save()
+        qs = User.objects.all()
         data = {
-            "summary": "Auction closed. Transaction saved in database.",
-            "auction": auction.serialize(),
-            "rent": rent.serialize()
+            "summary": "Get all users",
+            "users": [u.serialize() for u in qs]
         }
-        return JsonResponse(data, status=200)
-    return render(request, "Error Pages/403.html", status=403)
+        return JsonResponse(data, status=200, safe=False)
+    return HttpResponse(request, status=405)
 
 
-def get_videos(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
+def get_videos(request: WSGIRequest) -> HttpResponse:
     """
     List all videos existing in database.
 
     """
-    insert_youtube_videos('hulk', 'gorilla', 'tiger')
     if request.method == "GET":
         qs = Video.objects.all()
         data = {
@@ -168,10 +168,10 @@ def get_videos(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
             "videos": [a.serialize() for a in qs],
         }
         return JsonResponse(data, status=200, safe=False)
-    return render(request, "Error Pages/405.html", status=405)
+    return HttpResponse(request, status=405)
 
 
-def get_rents(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
+def get_rents(request: WSGIRequest) -> HttpResponse:
     """
     List all rents existing in database.
 
@@ -183,11 +183,29 @@ def get_rents(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
             "rents": [a.serialize() for a in qs],
         }
         return JsonResponse(data, status=200, safe=False)
-    return render(request, "Error Pages/405.html", status=405)
+    return HttpResponse(request, status=405)
 
 
-def insert_youtube_videos(*args):
+def get_random_words(n, word_site="https://www.mit.edu/~ecprice/wordlist.10000") -> List[str]:
+    """
+    Returns random words from word_site
+
+    :param n:
+    :param word_site: english dictionary
+    :return:
+    """
+    response = requests.get(word_site)
+    return [x.decode('utf-8') for x in random.sample(list(response.content.splitlines()), n)]
+
+
+def insert_youtube_videos(request: WSGIRequest):
+    """
+    Insert multiple random youtube videos to database
+
+    :return: redirect to videos list
+    """
     print("Inserting videos...")
+    args = get_random_words(n=5)
     for el in args:
         req = youtube.search().list(q=el, part='snippet', type='video')
         snippets = req.execute()
@@ -207,3 +225,26 @@ def insert_youtube_videos(*args):
             v.save()
 
         print(f'Inserted videos{[v["snippet"]["title"] for v in snippets["items"]]}')
+
+    return redirect('videos')
+
+
+def close_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
+    """
+    Closes auction.
+
+    """
+    if request.method == "GET":
+        auction = Auction.objects.all().filter(id=auction_id)
+        auction.update(state="inactive")
+        auction = auction.first()
+
+        rent = Rent(user=auction.last_bidder, auction=auction)
+        rent.save()
+        data = {
+            "summary": "Auction closed. Transaction saved in database.",
+            "auction": auction.serialize(),
+            "rent": rent.serialize()
+        }
+        return JsonResponse(data, status=200)
+    return HttpResponse(request, status=403)

@@ -8,8 +8,3 @@ app = Celery("ynvest_tube_server")
 app.config_from_object('django.conf:settings', namespace="CELERY")
 
 app.autodiscover_tasks()
-
-
-@app.task()
-def welcome():
-    print('Hello, world!\n' * 10)
