@@ -78,3 +78,10 @@ class Rent(models.Model, DirtyFieldsMixin, Serializable):
     auction = models.ForeignKey(Auction, on_delete=CASCADE)
     user = models.ForeignKey(User, on_delete=CASCADE)
     state = models.TextField(default="active", choices=(("ACTIVE", "active"), ("INACTIVE", "inactive")))
+
+
+class Bids(models.Model):
+    id = models.AutoField(primary_key=True)
+    auction = models.ForeignKey(Auction, on_delete=CASCADE)
+    user = models.ForeignKey(User, on_delete=CASCADE)
+    value = models.IntegerField(null=False)

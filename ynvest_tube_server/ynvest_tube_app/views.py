@@ -6,7 +6,7 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from ynvest_tube_server.settings import youtube
-from ynvest_tube_server.ynvest_tube_app.models import User, Auction, Rent, Video
+from ynvest_tube_server.ynvest_tube_app.models import User, Auction, Rent, Video, Bids
 
 
 def register_user(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
@@ -91,7 +91,6 @@ def get_auctions(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
         qs = Auction.objects.all()
         data = {
             "summary": "Get all auctions",
-            "auctions": [a.serialize() for a in qs],
             "activeAuctions": [a.serialize() for a in qs.filter(state="active")],
             "inactiveAuctions": [a.serialize() for a in qs.filter(state="inactive")],
         }
@@ -112,9 +111,11 @@ def get_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
     """
     qs = Auction.objects.all().filter(id=auction_id)
     if request.method == "GET":
+        auction_bidders = Bids.objects.all().filter(auction=qs.first()).values('user').distinct('user').count()
         data = {
             "summary": "Get auction",
-            "auction": qs.first().serialize()
+            "auctionBidders": int(auction_bidders),
+            "auction": qs.first().serialize(),
         }
         return JsonResponse(data, status=200)
 
@@ -124,6 +125,8 @@ def get_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
         bid_value = int(data["bidValue"])
         u = User.objects.all().filter(id=user_id)
         if u.first().cash >= bid_value:
+            b = Bids(qs.first(), u, bid_value)
+            b.save()
             qs.update(last_bidder=u, last_bid_value=bid_value)
             data = {
                 "summary": "Bet on auction",
@@ -184,8 +187,6 @@ def get_rents(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
 
 
 def insert_youtube_videos(*args):
-    # 1 update per 9 seconds [ 10 000 / 24h ]
-
     print("Inserting videos...")
     for el in args:
         req = youtube.search().list(q=el, part='snippet', type='video')
