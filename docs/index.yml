@@ -8,35 +8,14 @@ consumes:
 produces:
   - "application/json"
 paths:
-  /users:
-    get:
-      summary: 'Get all users'
-      tags:
-        - user
-      responses:
-        '200':
-          description: 'Users list retrieved successfully'
-          schema:
-            $ref: '#/definitions/UserList'
-        '403':
-          description: Bad user id
-  /users/register:
-    get:
-      summary: "Register new user"
-      tags:
-        - user
-      responses:
-        "200":
-          description: 'User id for an app to use in future calls'
-          schema:
-            $ref: '#/definitions/UserId'
+
   /user:
     get:
       summary: "Get user's overall info cash, account creation date."
       tags:
         - user
       parameters:
-        - in: path
+        - in: body
           name: "UserId"
           required: true
           schema:
@@ -45,16 +24,17 @@ paths:
         '200':
           description: 'User data'
           schema:
-            $ref: '#/definitions/UserDetails'
+            $ref: '#/definitions/User'
         '403':
           description: Bad user id
+
   /user/details:
     get:
       summary: "Get user's actual auctions and all rentals/ transactions."
       tags:
         - user
       parameters:
-        - in: path
+        - in: body
           name: "UserId"
           required: true
           schema:
@@ -66,6 +46,18 @@ paths:
             $ref: '#/definitions/UserDetails'
         '403':
           description: Bad user id
+
+  /users/register:
+    get:
+      summary: "Register new user"
+      tags:
+        - user
+      responses:
+        "200":
+          description: 'User id for an app to use in future calls'
+          schema:
+            $ref: '#/definitions/UserId'
+
   /auctions:
     get:
       summary: 'Get active and inactive auctions'
@@ -75,9 +67,10 @@ paths:
         '200':
           description: 'Auction list retrieved successfully'
           schema:
-            $ref: '#/definitions/AuctionList'
-        '403':
-          description: Bad user id
+            $ref: '#/definitions/Auctions'
+        '405':
+          description: Bad method
+
   /auctions/{auctionId}:
     get:
       summary: 'Get auction details'
@@ -92,11 +85,11 @@ paths:
         '200':
           description: 'Auction retrieved successfully'
           schema:
-            $ref: '#/definitions/AuctionDetails'
+            $ref: '#/definitions/Auction'
         '403':
           description: Bad auction id
     post:
-      summary: 'Bet on auction'
+      summary: 'Bid on auction'
       tags:
         - auction
       parameters:
@@ -105,27 +98,27 @@ paths:
           required: true
           type: integer
         - in: body
-          name: "UserId"
-        - in: body
-          name: "BetValue"
-          type: integer
+          name: "Bid"
+          schema:
+            $ref: '#/definitions/Bid'
       responses:
         '200':
-          description: 'Bet successful'
+          description: 'Bid successful'
           schema:
-            $ref: '#/definitions/AuctionDetails'
+            $ref: '#/definitions/Auction'
         '400':
           description: Not enough value in bet
         '403':
-          description: Bad user id
+          description: Bad user/auction id
         '404':
           description: Auction already ended
+
 
   /auctions/{auctionId}/close:
     get:
       summary: 'Close auction'
       tags:
-        - auction
+        - development
       parameters:
         - in: path
           name: "auctionId"
@@ -137,57 +130,167 @@ paths:
         '403':
           description: Bad auction id
 
+  /users:
+    get:
+      summary: 'Get all users'
+      tags:
+        - development
+      responses:
+        '200':
+          description: 'Users list retrieved successfully'
+          schema:
+            $ref: '#/definitions/UserList'
+        '405':
+          description: Bad method
+
+
+  /rents:
+    get:
+      summary: 'Get all rents'
+      tags:
+        - development
+      responses:
+        '200':
+          description: 'Rent list retrieved successfully'
+          schema:
+            $ref: '#/definitions/RentList'
+        '405':
+          description: Bad method
+
+
+  /videos:
+    get:
+      summary: 'Get all videos'
+      tags:
+        - development
+      responses:
+        '200':
+          description: 'Videos list retrieved successfully'
+          schema:
+            $ref: '#/definitions/VideoList'
+        '405':
+          description: Bad method
+
+  /videos/random-insert:
+    put:
+      summary: 'Insert multiple random youtube videos'
+      tags:
+        - development
+      responses:
+        '200':
+          description: 'Videos succesfully inserted'
+          schema:
+            $ref: '#/definitions/UserList'
+        '405':
+          description: Bad method
+
 definitions:
   UserId:
     type: string
     example: "729b8942-b579-11eb-8529-0242ac130003"
+
   User:
     type: object
     properties:
       id:
-        type: UUID ( string)
+        type: string
       cash:
         type: integer
       creation_date:
-        type: DateTime
+        type: string
+
   UserDetails:
     type: object
     properties:
-      cash:
-        type: integer
       attendingAuctions:
         type: array
         items:
-          type: Auction
+          $ref: '#/definitions/Auction'
       rents:
         type: array
         items:
-          type: Rent
+          $ref: '#/definitions/Rent'
+
+  UserList:
+    type: array
+    items:
+      $ref: '#/definitions/User'
+
   Auction:
     type: object
     properties:
       id:
         type: integer
       state:
-        type: Enum(active, inactive)
+        type: string
       starting_price:
         type: integer
       last_bid_value:
         type: integer
       last_bidder:
-        type: User
+        $ref: '#/definitions/User'
       video:
-        type: Video
+        $ref: '#/definitions/Video'
       rental_duration:
-        type: DateTimeDelta
+        type: string
       rental_expiration_date:
-        type: DateTime
+        type: string
+
+  Auctions:
+    type: object
+    properties:
+      activeAuctions:
+        type: array
+        items:
+          $ref: '#/definitions/Auction'
+      inactiveAuctions:
+        type: array
+        items:
+          $ref: '#/definitions/Auction'
   Rent:
     type: object
     properties:
       id:
         type: integer
       auction:
-        type: Auction
+        $ref: '#/definitions/Auction'
       user:
-        type: User
+        $ref: '#/definitions/User'
+
+  RentList:
+    type: array
+    items:
+      $ref: '#/definitions/Rent'
+
+  Bid:
+    type: object
+    properties:
+      UserId:
+        $ref: '#/definitions/UserId'
+      value:
+        type: integer
+
+  Video:
+    type: object
+    properties:
+      id:
+        type: integer
+      title:
+        type: string
+      description:
+        type: string
+      link:
+        type: string
+      views:
+        type: integer
+      likes:
+        type: integer
+      dislikes:
+        type: integer
+      rented:
+        type: boolean
+
+  VideoList:
+    type: array
+    items:
+      $ref: '#/definitions/Video'

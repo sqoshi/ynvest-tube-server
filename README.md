@@ -19,7 +19,7 @@ Redis:
 YoutubeApi
 - Add file `api_config.py` in `../ynvest_tube_server/ynvest_tube_server/` with variable `api_key='xxxxxxxxxxxxxxxxxxx'`
 
-![](.README_images/apikey.png)
+![](docs/.README_images/apikey.png)
 
 Requirements
 
@@ -47,7 +47,7 @@ In each one activate python virutalenv with `source venv/bin/activate`.
 
 Server is bind to local `http://127.0.0.1:8000/`
 
-![](.README_images/launch.png)
+![](docs/.README_images/launch.png)
 
 ## Periodic Tasks
 
