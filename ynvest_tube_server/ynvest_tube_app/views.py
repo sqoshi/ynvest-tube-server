@@ -1,11 +1,12 @@
+import json
 from typing import Union, Optional
 
 from django.core.handlers.wsgi import WSGIRequest
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render
-
-from ynvest_tube_server.auction_generator import generate_auction
-from ynvest_tube_server.ynvest_tube_app.models import User, Auction, Rent
+from django.views.decorators.csrf import csrf_exempt
+from ynvest_tube_server.settings import youtube
+from ynvest_tube_server.ynvest_tube_app.models import User, Auction, Rent, Video
 
 
 def register_user(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
@@ -39,15 +40,16 @@ def get_users(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
     return render(request, "Error Pages/405.html", status=405)
 
 
-def get_user(request: WSGIRequest, user_id: str) -> Union[JsonResponse, HttpResponse]:
+def get_user(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
     """
     Gets specified user.
 
     :param request: wsgi request
-    :param user_id: UUID assigned in registration
     """
-    qs = User.objects.all().filter(id=user_id).first()
     if request.method == "GET":
+        data = json.loads(request.body)
+        user_id = data["UserId"]
+        qs = User.objects.all().filter(id=user_id).first()
         data = {
             "summary": "Get user",
             "user": qs.serialize()
@@ -56,8 +58,10 @@ def get_user(request: WSGIRequest, user_id: str) -> Union[JsonResponse, HttpResp
     return render(request, "Error Pages/403.html", status=403)
 
 
-def get_user_details(request: WSGIRequest, user_id: str) -> Optional[Union[JsonResponse, HttpResponse]]:
+def get_user_details(request) -> Optional[Union[JsonResponse, HttpResponse]]:
     if request.method == "GET":
+        data = json.loads(request.body)
+        user_id = data["UserId"]
         # auctions in which user participate at the moment
         u = User.objects.all().filter(id=user_id).first()
         auctions = Auction.objects.all().filter(last_bidder=u, state="active")
@@ -81,7 +85,8 @@ def get_auctions(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
     List all auctions existed in database.
 
     """
-    generate_auction()
+    # gen_auc()
+    # insert_youtube_videos('marvel', 'funny dog', 'python', 'nike', 'kotlin')
     if request.method == "GET":
         qs = Auction.objects.all()
         data = {
@@ -94,12 +99,12 @@ def get_auctions(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
     return render(request, "Error Pages/405.html", status=405)
 
 
+@csrf_exempt
 def get_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
     """
     On GET request returns specific auction
 
     On POST request changes last bidder, and bet value.
-
 
     :param request: wsgi request
     :param auction_id: auction id
@@ -114,14 +119,18 @@ def get_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
         return JsonResponse(data, status=200)
 
     elif request.method == "POST":
-        u = User.objects.all().filter(id=request.POST.get("user_id"))
-        qs.update(last_bidder=u,
-                  bet_value=int(request.POST.get("value")))
-        data = {
-            "summary": "Bet on auction",
-            "auction": qs.first().serialize()
-        }
-        return JsonResponse(data, status=200)
+        data = json.loads(request.body)
+        user_id = data["UserId"]
+        bid_value = int(data["bidValue"])
+        u = User.objects.all().filter(id=user_id)
+        if u.first().cash >= bid_value:
+            qs.update(last_bidder=u, last_bid_value=bid_value)
+            data = {
+                "summary": "Bet on auction",
+                "auction": qs.first().serialize()
+            }
+            return JsonResponse(data, status=200)
+        # else no money for bet
 
     return render(request, "Error Pages/403.html", status=403)
 
@@ -141,3 +150,59 @@ def close_auction(request, auction_id) -> Union[JsonResponse, HttpResponse]:
         }
         return JsonResponse(data, status=200)
     return render(request, "Error Pages/403.html", status=403)
+
+
+def get_videos(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
+    """
+    List all videos existing in database.
+
+    """
+    insert_youtube_videos('hulk', 'gorilla', 'tiger')
+    if request.method == "GET":
+        qs = Video.objects.all()
+        data = {
+            "summary": "Get all videos",
+            "videos": [a.serialize() for a in qs],
+        }
+        return JsonResponse(data, status=200, safe=False)
+    return render(request, "Error Pages/405.html", status=405)
+
+
+def get_rents(request: WSGIRequest) -> Union[JsonResponse, HttpResponse]:
+    """
+    List all rents existing in database.
+
+    """
+    if request.method == "GET":
+        qs = Rent.objects.all()
+        data = {
+            "summary": "Get all rents",
+            "rents": [a.serialize() for a in qs],
+        }
+        return JsonResponse(data, status=200, safe=False)
+    return render(request, "Error Pages/405.html", status=405)
+
+
+def insert_youtube_videos(*args):
+    # 1 update per 9 seconds [ 10 000 / 24h ]
+
+    print("Inserting videos...")
+    for el in args:
+        req = youtube.search().list(q=el, part='snippet', type='video')
+        snippets = req.execute()
+        videos_id_string = ','.join([x['id']['videoId'] for x in snippets["items"]])
+
+        video_statistics = youtube.videos().list(id=videos_id_string, part='statistics')
+        stats = video_statistics.execute()
+
+        for v_snip, v_stats in zip(snippets["items"], stats["items"]):
+            v = Video(title=v_snip['snippet']['title'],
+                      description=v_snip['snippet']['description'],
+                      link=v_snip['id']['videoId'],
+                      likes=v_stats['statistics']['likeCount'],
+                      views=v_stats['statistics']['viewCount'],
+                      dislikes=v_stats['statistics']['dislikeCount'],
+                      )
+            v.save()
+
+        print(f'Inserted videos{[v["snippet"]["title"] for v in snippets["items"]]}')

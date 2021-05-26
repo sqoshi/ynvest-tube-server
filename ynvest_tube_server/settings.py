@@ -13,6 +13,11 @@ import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+from celery.schedules import crontab
+from googleapiclient.discovery import build
+
+from ynvest_tube_server.api_config import api_key
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
@@ -36,7 +41,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'ynvest_tube_server.ynvest_tube_app',
-    'swagger_render'
+    'swagger_render',
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -124,3 +130,19 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # swagger
 SWAGGER_YAML_FILENAME = '/docs/index.yml'
+
+# celery
+CELERY_BROKER_URL = 'redis://localhost:6379'
+# CELERY_TIMEZONE = "Europe/Warsaw"
+CELERY_TASK_TRACK_STARTED = True
+# CELERY_TASK_TIME_LIMIT = 30 * 60
+
+# CELERY_BEAT_SCHEDULE = {
+#     'ynvest_tube_app': {
+#         'task': 'print_auctions',
+#         'schedule': crontab(minute=1, hour=0),
+#     },
+# }
+
+# youtube
+youtube = build('youtube', 'v3', developerKey=api_key)

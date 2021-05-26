@@ -2,6 +2,7 @@ import datetime
 import uuid
 from typing import Dict
 
+from dirtyfields import DirtyFieldsMixin
 from django.db.models import CASCADE, ForeignKey
 from django.db import models
 
@@ -31,9 +32,13 @@ class Video(models.Model, Serializable):
 
     """
     id = models.AutoField(primary_key=True)
-    name = models.TextField(null=True)
+    title = models.TextField(null=True)
+    description = models.TextField(null=True)
     link = models.TextField(null=False)
-    views = models.IntegerField(null=False)
+    views = models.IntegerField(null=True, default=None)
+    likes = models.IntegerField(null=True, default=None)
+    dislikes = models.IntegerField(null=True, default=None)
+    rented = models.BooleanField(default=False)
 
 
 class User(models.Model, Serializable):
@@ -46,7 +51,7 @@ class User(models.Model, Serializable):
     creation_date = models.DateTimeField(auto_now=True)
 
 
-class Auction(models.Model, Serializable):
+class Auction(models.Model, DirtyFieldsMixin, Serializable):
     """
     Model represents auctions and stores information about it.
 
@@ -54,15 +59,17 @@ class Auction(models.Model, Serializable):
     id = models.AutoField(primary_key=True)
     state = models.TextField(default="active", choices=(("ACTIVE", "active"), ("INACTIVE", "inactive")))
     starting_price = models.IntegerField(null=False)
-    last_bet_value = models.IntegerField(null=True, default=None)
+    last_bid_value = models.IntegerField(null=True, default=None)
     last_bidder = models.ForeignKey(User, null=True, default=None, on_delete=CASCADE)
     video = models.ForeignKey(Video, on_delete=CASCADE)
     rental_duration = models.DurationField()
     # rental_begin_date = models.DateTimeField(auto_now=True)
+    auction_expiration_date = models.DateTimeField(default=datetime.datetime.now() - datetime.timedelta(days=10))
     rental_expiration_date = models.DateTimeField()
+    video_views_on_sold = models.IntegerField(null=True, default=None)
 
 
-class Rent(models.Model, Serializable):
+class Rent(models.Model, DirtyFieldsMixin, Serializable):
     """
     Model represents transaction between user and server.
 
@@ -70,3 +77,4 @@ class Rent(models.Model, Serializable):
     id = models.AutoField(primary_key=True)
     auction = models.ForeignKey(Auction, on_delete=CASCADE)
     user = models.ForeignKey(User, on_delete=CASCADE)
+    state = models.TextField(default="active", choices=(("ACTIVE", "active"), ("INACTIVE", "inactive")))
