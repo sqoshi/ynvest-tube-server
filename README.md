@@ -1,7 +1,14 @@
 # ynvest-tube-server
 
+<div align="center" style="display: flex;flex-direction: column">
+  <p>ynvest-tube-server</p>
+  <img src="https://github.com/sqoshi/ynvest-tube/tree/master/ynvest_tube/app/src/main/ynvest_tube_logo-playstore.png" width="100"/>
+</div>
+
 Server for mobile game [YnvestTube](https://github.com/sqoshi/ynvest-tube). Instructions included in this article
 concern Linux systems.
+
+
 
 # Table of contests
 
