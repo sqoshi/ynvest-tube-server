@@ -144,6 +144,16 @@ def update_videos_views() -> None:
     print(f"Updated {len(objects)} videos statistics.")
 
 
+def _deactivate_rent(rent: Rent, views_diff: int) -> None:
+    """
+    Deactivate rent in system
+
+    """
+    rent.state = 'inactive'
+    rent.profit = views_diff - rent.auction.last_bid_value
+    rent.save()
+
+
 @celery_app.task(name='settle_rents')
 def settle_users_rents() -> None:
     """
@@ -160,8 +170,6 @@ def settle_users_rents() -> None:
 
         _settle_user(u, views_diff)
         _set_video_rented(v, False)
-
-        r.state = 'inactive'
-        r.save()
+        _deactivate_rent(r, views_diff)
 
     print(f'Settled {len(rents)} rents.')

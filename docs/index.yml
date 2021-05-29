@@ -10,7 +10,7 @@ produces:
 paths:
 
   /user:
-    get:
+    post:
       summary: "Get user's overall info cash, account creation date."
       tags:
         - user
@@ -29,7 +29,7 @@ paths:
           description: Bad user id
 
   /user/details:
-    get:
+    post:
       summary: "Get user's actual auctions and all rentals/ transactions."
       tags:
         - user
@@ -115,7 +115,7 @@ paths:
 
 
   /auctions/{auctionId}/close:
-    get:
+    delete:
       summary: 'Close auction'
       tags:
         - development
@@ -143,7 +143,6 @@ paths:
         '405':
           description: Bad method
 
-
   /rents:
     get:
       summary: 'Get all rents'
@@ -156,7 +155,6 @@ paths:
             $ref: '#/definitions/RentList'
         '405':
           description: Bad method
-
 
   /videos:
     get:
@@ -235,6 +233,8 @@ definitions:
         type: string
       rental_expiration_date:
         type: string
+      video_views_on_sold:
+        type: integer
 
   Auctions:
     type: object
@@ -256,6 +256,10 @@ definitions:
         $ref: '#/definitions/Auction'
       user:
         $ref: '#/definitions/User'
+      state:
+        type: string
+      profit:
+        type: integer
 
   RentList:
     type: array

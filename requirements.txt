@@ -14,7 +14,6 @@ click-repl==0.1.6
 cryptography==3.4.7
 Django==3.2.3
 django-celery-beat==2.2.0
-django-dirtyfields==1.7.0
 django-swagger-render==0.1.1
 django-timezone-field==4.1.2
 google-api-core==1.28.0
@@ -30,7 +29,6 @@ kombu==5.0.2
 Markdown==3.3.4
 oauthlib==3.1.0
 packaging==20.9
-pkg-resources==0.0.0
 prompt-toolkit==3.0.18
 protobuf==3.17.0
 pyasn1==0.4.8

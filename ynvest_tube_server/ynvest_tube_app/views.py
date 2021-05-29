@@ -1,10 +1,11 @@
 import datetime
 import json
 import random
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 import requests
 from django.core.handlers.wsgi import WSGIRequest
+from django.db.models import QuerySet
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt
@@ -34,13 +35,13 @@ def get_user(request: WSGIRequest) -> HttpResponse:
 
     :param request: wsgi request
     """
-    if request.method == "GET":
+    if request.method == "POST":
         data = json.loads(request.body)
         user_id = data["UserId"]
-        qs = User.objects.all().filter(id=user_id).first()
+        u = User.objects.all().filter(id=user_id).first()
         data = {
             "summary": "Get user",
-            "user": qs.serialize()
+            "user": u.serialize()
         }
         return JsonResponse(data, status=200)
     return HttpResponse(request, status=403)
@@ -54,21 +55,24 @@ def get_user_details(request: WSGIRequest) -> Optional[HttpResponse]:
             - rents - history
 
     """
-    if request.method == "GET":
+    if request.method == "POST":
         data = json.loads(request.body)
         user_id = data["UserId"]
+
         # auctions in which user participate at the moment
         u = User.objects.all().filter(id=user_id).first()
         auctions = Auction.objects.all().filter(last_bidder=u, state="active")
-        # all user transactions
-        rents = Rent.objects.filter(user=u)
+
+        # user rents
+        active_rents = Rent.objects.filter(user=u, state='active')
+        inactive_rents = Rent.objects.filter(user=u, state='inactive')
+
         data = {
             "summary": "Get user actual auctions and all his rents.",
             "cash": u.cash,
-            "attendingAuctions": [a.serialize for a in auctions],  # totally wrong name need to be changed
-            "rents": [r.serialize() for r in rents],
-            # "actualRents": [r.serialize() for r in rents.select_related("auction").filter()],
-            # "expiredRents": [r.serialize() for r in rents.filter()]
+            "attendingAuctions": _serialize_query_set(auctions),  # wrong name need to be changed
+            "actualRents": _serialize_query_set(active_rents),
+            "expiredRents": _serialize_query_set(inactive_rents)
         }
         return JsonResponse(data, status=200)
     return HttpResponse(request, status=403)
@@ -83,8 +87,8 @@ def get_auctions(request: WSGIRequest) -> HttpResponse:
         qs = Auction.objects.all()
         data = {
             "summary": "Get all auctions",
-            "activeAuctions": [a.serialize() for a in qs.filter(state="active")],
-            "inactiveAuctions": [a.serialize() for a in qs.filter(state="inactive")],
+            "activeAuctions": _serialize_query_set(qs.filter(state="active")),
+            "inactiveAuctions": _serialize_query_set(qs.filter(state="inactive")),
         }
         return JsonResponse(data, status=200, safe=False)
     return HttpResponse(request, status=405)
@@ -112,7 +116,6 @@ def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
         return JsonResponse(data, status=200)
 
     elif request.method == "POST":
-
         if qs.first().auction_expiration_date < datetime.datetime.now():
             # auction already ended
             return HttpResponse(request, status=404)
@@ -139,7 +142,17 @@ def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
     return HttpResponse(request, status=403)
 
 
-#######################################################################################################################
+def _serialize_query_set(query_set: QuerySet) -> List[Dict]:
+    """
+    Serializes whole query set to list of dicts
+
+    :param query_set: django query set ( 'list' of rows from table )
+    :return: list of dictionaries representing database models
+    """
+    return [obj.serialize() for obj in query_set]
+
+
+##################################################### DEVELOPMENT ######################################################
 
 def get_users(request: WSGIRequest) -> HttpResponse:
     """
@@ -150,7 +163,7 @@ def get_users(request: WSGIRequest) -> HttpResponse:
         qs = User.objects.all()
         data = {
             "summary": "Get all users",
-            "users": [u.serialize() for u in qs]
+            "users": _serialize_query_set(qs)
         }
         return JsonResponse(data, status=200, safe=False)
     return HttpResponse(request, status=405)
@@ -165,7 +178,7 @@ def get_videos(request: WSGIRequest) -> HttpResponse:
         qs = Video.objects.all()
         data = {
             "summary": "Get all videos",
-            "videos": [a.serialize() for a in qs],
+            "videos": _serialize_query_set(qs),
         }
         return JsonResponse(data, status=200, safe=False)
     return HttpResponse(request, status=405)
@@ -180,19 +193,19 @@ def get_rents(request: WSGIRequest) -> HttpResponse:
         qs = Rent.objects.all()
         data = {
             "summary": "Get all rents",
-            "rents": [a.serialize() for a in qs],
+            "rents": _serialize_query_set(qs),
         }
         return JsonResponse(data, status=200, safe=False)
     return HttpResponse(request, status=405)
 
 
-def get_random_words(n, word_site="https://www.mit.edu/~ecprice/wordlist.10000") -> List[str]:
+def get_random_words(n: int, word_site: str = "https://www.mit.edu/~ecprice/wordlist.10000") -> List[str]:
     """
     Returns random words from word_site
 
-    :param n:
+    :param n: quantity of random words
     :param word_site: english dictionary
-    :return:
+    :return: list of random words from word_site
     """
     response = requests.get(word_site)
     return [x.decode('utf-8') for x in random.sample(list(response.content.splitlines()), n)]
@@ -234,7 +247,7 @@ def close_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
     Closes auction.
 
     """
-    if request.method == "GET":
+    if request.method == "DELETE":
         auction = Auction.objects.all().filter(id=auction_id)
         auction.update(state="inactive")
         auction = auction.first()

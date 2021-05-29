@@ -2,7 +2,6 @@ import datetime
 import uuid
 from typing import Dict
 
-from dirtyfields import DirtyFieldsMixin
 from django.db.models import CASCADE, ForeignKey
 from django.db import models
 
@@ -51,7 +50,7 @@ class User(models.Model, Serializable):
     creation_date = models.DateTimeField(auto_now=True)
 
 
-class Auction(models.Model, DirtyFieldsMixin, Serializable):
+class Auction(models.Model, Serializable):
     """
     Model represents auctions and stores details about it.
 
@@ -69,7 +68,7 @@ class Auction(models.Model, DirtyFieldsMixin, Serializable):
     video_views_on_sold = models.IntegerField(null=True, default=None)
 
 
-class Rent(models.Model, DirtyFieldsMixin, Serializable):
+class Rent(models.Model, Serializable):
     """
     Model represents transaction between user and server.
 
@@ -78,6 +77,7 @@ class Rent(models.Model, DirtyFieldsMixin, Serializable):
     auction = models.ForeignKey(Auction, on_delete=CASCADE)
     user = models.ForeignKey(User, on_delete=CASCADE)
     state = models.TextField(default="active", choices=(("ACTIVE", "active"), ("INACTIVE", "inactive")))
+    profit = models.IntegerField(null=True, default=None)
 
 
 class Bids(models.Model):

@@ -2,22 +2,24 @@
 
 # Table of contests
 
-<hr>
-
+- [Endpoints](#endpoints)
 - [Installation](#installation)
 - [Launch](#launch)
 - [Periodic Tasks](#periodic-tasks)
-- [Endpoints](#endpoints)
+
+## Endpoints
+
+![](docs/.README_images/endpoints.png)
 
 ## Installation
 
-<hr>
 Redis:
-
 - `sudo apt-get install redis`
 
 YoutubeApi
-- Add file `api_config.py` in `../ynvest_tube_server/ynvest_tube_server/` with variable `api_key='xxxxxxxxxxxxxxxxxxx'`
+
+- Change api_key in `api_config.py` in `../ynvest_tube_server/ynvest_tube_server/` to key generated
+  in [YoutubeDataApi Projects](https://developers.google.com/youtube/v3).
 
 ![](docs/.README_images/apikey.png)
 
@@ -25,25 +27,22 @@ Requirements
 
 - `pip install -r requirements.txt`
 
-
 Migrations (Call migrations, just for sure)
 
 - `./manage.py makemigrations`
 
 - `./manage.py migrate`
 
-
 ## Launch
 
-Run three terminals in directory containing `manage.py`.
-In each one activate python virutalenv with `source venv/bin/activate`.
+Run three terminals in directory containing `manage.py`. In each one activate python virutalenv
+with `source venv/bin/activate`.
 
 1. In first: `celery -A ynvest_tube_server worker -l info -B`
 
 2. In second: `celery -A ynvest_tube_server beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler`
 
 3. In third: `./manage.py runserver`
-
 
 Server is bind to local `http://127.0.0.1:8000/`
 
@@ -85,6 +84,3 @@ Payoff users salaries at the end of renting.
 - sets rent to `inactive`
 - sets video to `not rented`
 
-## Endpoints
-
-![](docs/.README_images/endpoints.png)
