@@ -204,7 +204,11 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/Auction'
-      rents:
+      actualRents:
+        type: array
+        items:
+          $ref: '#/definitions/Rent'
+      expiredRents:
         type: array
         items:
           $ref: '#/definitions/Rent'
