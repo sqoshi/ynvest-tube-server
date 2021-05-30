@@ -1,9 +1,9 @@
-import datetime
 import uuid
 from typing import Dict
 
 from django.db.models import CASCADE, ForeignKey
 from django.db import models
+from django.utils import timezone
 
 
 class Serializable:
@@ -64,7 +64,7 @@ class Auction(models.Model, Serializable):
     video = models.ForeignKey(Video, on_delete=CASCADE)
     rental_duration = models.DurationField()
     # rental_begin_date = models.DateTimeField(auto_now=True)
-    auction_expiration_date = models.DateTimeField(default=datetime.datetime.now() - datetime.timedelta(days=10))
+    auction_expiration_date = models.DateTimeField(default=timezone.now() - timezone.timedelta(days=10))
     rental_expiration_date = models.DateTimeField()
     video_views_on_sold = models.IntegerField(null=True, default=None)
 

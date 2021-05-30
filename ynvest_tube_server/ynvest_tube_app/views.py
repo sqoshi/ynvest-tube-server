@@ -284,7 +284,20 @@ def get_random_words(n: int, word_site: str = "https://www.mit.edu/~ecprice/word
     :return: list of random words from word_site
     """
     response = requests.get(word_site)
-    return [x.decode('utf-8') for x in random.sample(list(response.content.splitlines()), n)]
+    result = [x.decode('utf-8') for x in random.sample(list(response.content.splitlines()), n)]
+    return get_random_words(n) if not result else result
+
+
+def _fix_punctuation_marks(text: str) -> str:
+    """
+    Changing not parsed quotes and ampersands to correct form.
+
+    :param text: string containing not parsed symbols
+    :return: string with parsed & and '
+    """
+    text = text.replace('&quot;', '"')
+    text = text.replace('&#39;', '"')
+    return text.replace('&amp;', '&')
 
 
 def insert_youtube_videos(request: WSGIRequest):
@@ -302,10 +315,10 @@ def insert_youtube_videos(request: WSGIRequest):
 
         video_statistics = youtube.videos().list(id=videos_id_string, part='statistics')
         stats = video_statistics.execute()
-
+        print(snippets["items"], stats["items"])
         for v_snip, v_stats in zip(snippets["items"], stats["items"]):
-            v = Video(title=v_snip['snippet']['title'],
-                      description=v_snip['snippet']['description'],
+            v = Video(title=_fix_punctuation_marks(v_snip['snippet']['title']),
+                      description=_fix_punctuation_marks(v_snip['snippet']['description']),
                       link=v_snip['id']['videoId'],
                       likes=v_stats['statistics']['likeCount'],
                       views=v_stats['statistics']['viewCount'],
@@ -313,7 +326,7 @@ def insert_youtube_videos(request: WSGIRequest):
                       )
             v.save()
 
-        print(f'Inserted videos{[v["snippet"]["title"] for v in snippets["items"]]}')
+        print(f'Inserted videos{[_fix_punctuation_marks(v["snippet"]["title"]) for v in snippets["items"]]}')
 
     return redirect('get_videos')
 

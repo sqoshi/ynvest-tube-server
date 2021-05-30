@@ -1,6 +1,7 @@
-import datetime
 import random
 from typing import List
+
+from django.utils import timezone
 
 from ynvest_tube_server import celery_app
 from ynvest_tube_server.settings import youtube
@@ -48,7 +49,7 @@ def close_expired_auctions() -> None:
 
     """
     print("Searching for closeable auctions...")
-    auctions = Auction.objects.filter(state='active', auction_expiration_date__lte=datetime.datetime.now())
+    auctions = Auction.objects.filter(state='active', auction_expiration_date__lte=timezone.now())
 
     for a in auctions:
         a.state = 'inactive'
@@ -78,7 +79,7 @@ def generate_auction() -> None:
 
     :interval 1 call per 1800 s
     """
-    active_auctions = Auction.objects.filter(state='active', rental_expiration_date__gt=datetime.datetime.now())
+    active_auctions = Auction.objects.filter(state='active', rental_expiration_date__gt=timezone.now())
     if len(active_auctions) < 10:
         print(f"Generating auction #{len(Auction.objects.all())} ...")
 
@@ -86,13 +87,13 @@ def generate_auction() -> None:
         v = random.choice(available_videos)
         _set_video(v, "auctioned")
 
-        random_time_delta = datetime.timedelta(days=random.randint(0, 6), hours=random.randint(1, 24))
+        random_time_delta = timezone.timedelta(days=random.randint(0, 6), hours=random.randint(1, 24))
         auction = Auction(starting_price=random.randint(200, 500),
                           # random.randint(int(1 / 100 * v.views), int(5 / 100 * v.views)),
                           video=v,
                           rental_duration=random_time_delta,
-                          auction_expiration_date=datetime.datetime.now() + datetime.timedelta(minutes=15),
-                          rental_expiration_date=datetime.datetime.now() + random_time_delta,
+                          auction_expiration_date=timezone.now() + timezone.timedelta(minutes=15),
+                          rental_expiration_date=timezone.now() + random_time_delta,
                           video_views_on_sold=v.views)
         auction.save()
 
@@ -164,7 +165,7 @@ def settle_users_rents() -> None:
     :interval 1 call per 1 s
     """
     print(f'Settling rents...')
-    rents = list(Rent.objects.filter(auction__rental_expiration_date__lte=datetime.datetime.now()))
+    rents = list(Rent.objects.filter(auction__rental_expiration_date__lte=timezone.now()))
     for r in rents:
         u, a, v = r.user, r.auction, r.auction.video
         views_diff = v.views - a.video_views_on_sold
