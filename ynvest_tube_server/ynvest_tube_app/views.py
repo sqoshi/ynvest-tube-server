@@ -1,16 +1,19 @@
 import datetime
 import json
 import random
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Union, Tuple
 
 import requests
 from django.core.handlers.wsgi import WSGIRequest
 from django.db.models import QuerySet
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from ynvest_tube_server.settings import youtube
 from ynvest_tube_server.ynvest_tube_app.models import User, Auction, Rent, Video, Bids
+
+wrong_method_response = JsonResponse({"summary": "Used request method is not allowed for this endpoint."}, status=405)
 
 
 def register_user(request: WSGIRequest) -> Optional[HttpResponse]:
@@ -26,7 +29,18 @@ def register_user(request: WSGIRequest) -> Optional[HttpResponse]:
             "userId": new_user.id,
         }
         return JsonResponse(data, status=200)
-    return HttpResponse(request, status=405)
+    return wrong_method_response
+
+
+def _load_data_from(request: WSGIRequest, *args: str) -> List:
+    """
+    Load data from request by transforming request to json. [python dict]
+
+    :param args: keys that should be in request body, if not found then None
+    :return: list of selected request body elements
+    """
+    data = json.loads(request.body)
+    return [data[arg] if arg in data.keys() else None for arg in args]
 
 
 @csrf_exempt
@@ -37,15 +51,14 @@ def get_user(request: WSGIRequest) -> HttpResponse:
     :param request: wsgi request
     """
     if request.method == "POST":
-        data = json.loads(request.body)
-        user_id = data["UserId"]
+        user_id = _load_data_from(request, "UserId")
         u = User.objects.all().filter(id=user_id).first()
         data = {
             "summary": "Get user",
             "user": u.serialize()
         }
         return JsonResponse(data, status=200)
-    return HttpResponse(request, status=403)
+    return wrong_method_response
 
 
 @csrf_exempt
@@ -58,8 +71,7 @@ def get_user_details(request: WSGIRequest) -> Optional[HttpResponse]:
 
     """
     if request.method == "POST":
-        data = json.loads(request.body)
-        user_id = data["UserId"]
+        user_id = _load_data_from(request, "UserId")
 
         # auctions in which user participate at the moment
         u = User.objects.all().filter(id=user_id).first()
@@ -77,7 +89,7 @@ def get_user_details(request: WSGIRequest) -> Optional[HttpResponse]:
             "expiredRents": _serialize_query_set(inactive_rents)
         }
         return JsonResponse(data, status=200)
-    return HttpResponse(request, status=403)
+    return wrong_method_response
 
 
 def get_auctions(request: WSGIRequest) -> HttpResponse:
@@ -93,7 +105,76 @@ def get_auctions(request: WSGIRequest) -> HttpResponse:
             "inactiveAuctions": _serialize_query_set(qs.filter(state="inactive")),
         }
         return JsonResponse(data, status=200, safe=False)
-    return HttpResponse(request, status=405)
+    return wrong_method_response
+
+
+def _check_auction_post_request_cash_requirements(auction: Auction, user_query: QuerySet, bid_value: int) -> Tuple:
+    """
+    Check if auction post request requirements are fulfilled, but focus only on cash requirements.
+
+    Requirements:
+
+        - user must have enough cash for bid
+        - bid must be greater than last bid value and auction starting price
+
+    :param auction: aimed auction
+    :param user_query: query of users with special uuid
+    :param bid_value: value of new bid (try)
+    :return: response status and information about occurred error
+    """
+    data, status = {}, 0
+    user = user_query.first()
+    # check user cash in wallet
+    if user.cash < bid_value:
+        data['summary'] = 'User has not enough cash for this bet.'
+        data['userCash'] = user.cash
+        data['bidValue'] = bid_value
+        data['errorMessage'] = 'User has less cash than minimal bid value.'
+        return data, 400
+
+    last_bid = auction.last_bid_value
+    # check bid value correctness
+    if (last_bid is not None and bid_value < last_bid) or bid_value < auction.starting_price:
+        data['summary'] = 'Wrong bid value.'
+        data['auctionStartingPrice'] = auction.starting_price
+        data['auctionLastBidValue'] = bid_value
+        data['errorMessage'] = 'Bid must be greater than starting price and last bid value.'
+        return data, 400
+
+    return data, status
+
+
+def _check_auction_post_request_requirements(auction: Auction, user_query: QuerySet, bid_value: int) -> Tuple:
+    """
+    Check if auction post request requirements are fulfilled.
+
+    Requirements:
+
+        - user must be registered in database
+        - auction must be active
+
+    :param auction: aimed auction
+    :param user_query: query of users with special uuid
+    :param bid_value: value of new bid (try)
+    :return: response status and information about occurred error
+    """
+    data, status = {}, 0
+    # check if auction expired
+    if auction.auction_expiration_date < timezone.now():
+        data['summary'] = 'Auction expired.'
+        data['expirationDate'] = auction.auction_expiration_date
+        return data, 404
+
+    # check if user exist
+    if not len(user_query):
+        data['summary'] = 'Wrong user UUID in body.'
+        data['errorMessage'] = 'User with that uuid does not exist in database.'
+        return data, 403
+
+    # check cash requirements
+    data, status = _check_auction_post_request_cash_requirements(auction, user_query, bid_value)
+
+    return data, status
 
 
 @csrf_exempt
@@ -107,41 +188,33 @@ def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
     :param auction_id: auction id
 
     """
-    qs = Auction.objects.all().filter(id=auction_id)
+    auction_query = Auction.objects.all().filter(id=auction_id)
+    auction = auction_query.first
     if request.method == "GET":
-        auction_bidders = Bids.objects.all().filter(auction=qs.first()).values('user').distinct().count()
+        auction_bidders = Bids.objects.all().filter(auction=auction).values('user').distinct()
         data = {
             "summary": "Get auction",
-            "auctionBidders": int(auction_bidders),
-            "auction": qs.first().serialize(),
+            "auctionBiddersCount": int(auction_bidders.count()),
+            "auction": auction_query.first().serialize(),
         }
         return JsonResponse(data, status=200)
 
     elif request.method == "POST":
-        if qs.first().auction_expiration_date < datetime.datetime.now():
-            # auction already ended
-            return HttpResponse(request, status=404)
-
-        data = json.loads(request.body)
-        user_id = data["UserId"]
-        bid_value = int(data["bidValue"])
-        u = User.objects.all().filter(id=user_id)
-        if len(u) > 0:
-            if u.first().cash >= bid_value:
-                b = Bids(qs.first(), u, bid_value)
-                b.save()
-                qs.update(last_bidder=u, last_bid_value=bid_value)
-                data = {
-                    "summary": "Bet on auction",
-                    "auction": qs.first().serialize()
-                }
-                # success
-                return JsonResponse(data, status=200)
-            else:
-                # not enough money
-                return HttpResponse(request, status=400)
-    # bad auction / user id
-    return HttpResponse(request, status=403)
+        user_id, bid_value = _load_data_from(request, "UserId", "bidValue")
+        user_query = User.objects.all().filter(id=user_id)
+        error_response, error_status = _check_auction_post_request_requirements(auction, user_query, bid_value)
+        if error_response and error_status:
+            return JsonResponse(error_response, error_status)
+        else:
+            u = user_query.first()
+            Bids(auction=auction, user=u, value=bid_value).save()
+            auction_query.update(last_bidder=u, last_bid_value=bid_value)
+            data = {
+                "summary": "Successfully bid on auction",
+                "auction": auction.serialize()
+            }
+            return JsonResponse(data, status=200)
+    return wrong_method_response
 
 
 def _serialize_query_set(query_set: QuerySet) -> List[Dict]:
@@ -168,7 +241,7 @@ def get_users(request: WSGIRequest) -> HttpResponse:
             "users": _serialize_query_set(qs)
         }
         return JsonResponse(data, status=200, safe=False)
-    return HttpResponse(request, status=405)
+    return wrong_method_response
 
 
 def get_videos(request: WSGIRequest) -> HttpResponse:
@@ -183,7 +256,7 @@ def get_videos(request: WSGIRequest) -> HttpResponse:
             "videos": _serialize_query_set(qs),
         }
         return JsonResponse(data, status=200, safe=False)
-    return HttpResponse(request, status=405)
+    return wrong_method_response
 
 
 def get_rents(request: WSGIRequest) -> HttpResponse:
@@ -198,7 +271,7 @@ def get_rents(request: WSGIRequest) -> HttpResponse:
             "rents": _serialize_query_set(qs),
         }
         return JsonResponse(data, status=200, safe=False)
-    return HttpResponse(request, status=405)
+    return wrong_method_response
 
 
 def get_random_words(n: int, word_site: str = "https://www.mit.edu/~ecprice/wordlist.10000") -> List[str]:
@@ -248,6 +321,8 @@ def close_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
     """
     Closes auction.
 
+    FIXME: its not working properly
+
     """
     if request.method == "DELETE":
         auction = Auction.objects.all().filter(id=auction_id)
@@ -262,4 +337,4 @@ def close_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
             "rent": rent.serialize()
         }
         return JsonResponse(data, status=200)
-    return HttpResponse(request, status=403)
+    return wrong_method_response
