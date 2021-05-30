@@ -1,6 +1,6 @@
 # ynvest-tube-server
 
-<div align="right" style="display: flex;flex-direction: row">
+<div align="center" style="display: flex;flex-direction: row">
   <img src="https://github.com/sqoshi/ynvest-tube/tree/master/ynvest_tube/app/src/main/ynvest_tube_logo-playstore.png" width="100"/>
 </div>
 
