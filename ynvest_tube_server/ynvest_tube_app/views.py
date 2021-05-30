@@ -29,6 +29,7 @@ def register_user(request: WSGIRequest) -> Optional[HttpResponse]:
     return HttpResponse(request, status=405)
 
 
+@csrf_exempt
 def get_user(request: WSGIRequest) -> HttpResponse:
     """
     Gets specified user.
@@ -47,6 +48,7 @@ def get_user(request: WSGIRequest) -> HttpResponse:
     return HttpResponse(request, status=403)
 
 
+@csrf_exempt
 def get_user_details(request: WSGIRequest) -> Optional[HttpResponse]:
     """
     Display detailed data about user
