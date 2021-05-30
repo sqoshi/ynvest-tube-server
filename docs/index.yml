@@ -295,8 +295,8 @@ definitions:
         type: integer
       dislikes:
         type: integer
-      rented:
-        type: boolean
+      state:
+        type: string
 
   VideoList:
     type: array

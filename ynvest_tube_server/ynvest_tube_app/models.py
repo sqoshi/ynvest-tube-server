@@ -37,7 +37,8 @@ class Video(models.Model, Serializable):
     views = models.IntegerField(null=True, default=None)
     likes = models.IntegerField(null=True, default=None)
     dislikes = models.IntegerField(null=True, default=None)
-    rented = models.BooleanField(default=False)
+    state = models.TextField(default="available",
+                             choices=(("RENTED", "rented"), ("AUCTIONED", "auctioned"), ("AVAILABLE", "available")))
 
 
 class User(models.Model, Serializable):

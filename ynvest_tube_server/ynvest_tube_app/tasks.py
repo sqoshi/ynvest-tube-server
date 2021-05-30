@@ -7,12 +7,12 @@ from ynvest_tube_server.settings import youtube
 from ynvest_tube_server.ynvest_tube_app.models import Auction, Video, Rent, User
 
 
-def _set_video_rented(video: Video, value=True) -> None:
+def _set_video(video: Video, state: str) -> None:
     """
-    Set video state as rented
+    Set video state.
 
     """
-    video.rented = value
+    video.state = state
     video.save()
 
 
@@ -55,12 +55,12 @@ def close_expired_auctions() -> None:
         # a.video_views_on_sold = a.video.views
         u = a.last_bidder
         if u is not None:
-            _set_video_rented(a.video)
+            _set_video(a.video, "rented")
             _assign_rent(a)
             _settle_user(u, -a.last_bid_value)
         a.save()
 
-    print(f"Closed {len(auctions)} auctions. List: \n {[x for x in auctions]}.")
+    print(f"Closed {len(auctions)} auctions. \nList of closed videos: \n {[x.video.title for x in auctions]}.")
 
 
 @celery_app.task(name='generate_auction')
@@ -68,7 +68,7 @@ def generate_auction() -> None:
     """
     Generates random auction with random video.
 
-    auction cost = 1-5 % of current video views
+    auction cost = random between 200 and 500 coins  [[OLD]1-5 % of current video views]
 
     rent duration = random between 1 hour and 7 days
 
@@ -82,11 +82,13 @@ def generate_auction() -> None:
     if len(active_auctions) < 10:
         print(f"Generating auction #{len(Auction.objects.all())} ...")
 
-        videos_not_rented = Video.objects.all().filter(rented=False)
-        v = random.choice(videos_not_rented)
+        available_videos = Video.objects.all().filter(state='available')
+        v = random.choice(available_videos)
+        _set_video(v, "auctioned")
 
         random_time_delta = datetime.timedelta(days=random.randint(0, 6), hours=random.randint(1, 24))
-        auction = Auction(starting_price=random.randint(int(1 / 100 * v.views), int(5 / 100 * v.views)),
+        auction = Auction(starting_price=random.randint(200, 500),
+                          # random.randint(int(1 / 100 * v.views), int(5 / 100 * v.views)),
                           video=v,
                           rental_duration=random_time_delta,
                           auction_expiration_date=datetime.datetime.now() + datetime.timedelta(minutes=15),
@@ -169,7 +171,7 @@ def settle_users_rents() -> None:
         print(f'Video `{v.title}` views increased by {views_diff}.')
 
         _settle_user(u, views_diff)
-        _set_video_rented(v, False)
+        _set_video(v, "available")
         _deactivate_rent(r, views_diff)
 
     print(f'Settled {len(rents)} rents.')

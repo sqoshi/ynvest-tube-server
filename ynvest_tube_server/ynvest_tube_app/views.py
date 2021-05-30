@@ -22,7 +22,7 @@ def register_user(request: WSGIRequest) -> Optional[HttpResponse]:
         new_user = User()
         new_user.save()
         data = {
-            "summary": "Register new user",
+            "summary": "Successfully registered new user",
             "userId": new_user.id,
         }
         return JsonResponse(data, status=200)
@@ -241,7 +241,7 @@ def insert_youtube_videos(request: WSGIRequest):
 
         print(f'Inserted videos{[v["snippet"]["title"] for v in snippets["items"]]}')
 
-    return redirect('videos')
+    return redirect('get_videos')
 
 
 def close_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
