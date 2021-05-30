@@ -94,11 +94,9 @@ Redis used as a machine is handling calls for periodic tasks. Task scheduler may
 
 `( 1call / 1s)`
 
-When auction expires, set auction to `inactive`
-
-1. If no one participated in auction, then just change auction state.
-2. Else add new rent to `rents` table with user as `last_bidder`, reduce user cash by `last_bid_value`, set video
-   to `rented`.
+- changing auction state to inactive
+- assign auction to winning user by adding rent to Rent table or passing on none participants
+- charges user wallet
 
 ### Auctions generator
 
@@ -106,15 +104,19 @@ When auction expires, set auction to `inactive`
 
 Generate random auction if there is less than 10 active auctions.
 
-- random not rented video
-- random starting price
-- rental expiration date= now() + random(8 days
+- auction cost = random between 200 and 500 coins  [[OLD]1-5 % of current video views]
+- rent duration = random between 1 hour and 7 days
+- each auction lasts 15 minutes
+- max auctions = 10
+- sets video to `auctioned`
 
 ### Video updater 
 
 `(1call / 30s) ( max )`
 
-Update views, likes and dislikes of each video in database.
+Updates statistics views, likes and dislikes of each video in database via youtube data api v3.
+
+- For now user's cash is being increased by views difference. (rent start, rent end)
 
 ### Rents settler 
 
@@ -122,11 +124,11 @@ Update views, likes and dislikes of each video in database.
 
 Payoff users salaries at the end of renting.
 
-- gets rentals with expired date and calculate video diffs.
-- computes salary and increases user cash.
+- gets rentals with expired date and calculate video diffs
+- computes salary and increases user cash
 - sets rent to `inactive`
-- computes rent profit.
-- sets video to `not rented`
+- computes rent profit
+- resets video to `available`
 
 ## Technologies
 
