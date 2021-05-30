@@ -1,7 +1,6 @@
-import datetime
 import json
 import random
-from typing import Optional, List, Dict, Union, Tuple
+from typing import Optional, List, Dict, Tuple
 
 import requests
 from django.core.handlers.wsgi import WSGIRequest
@@ -137,7 +136,8 @@ def _check_auction_post_request_cash_requirements(auction: Auction, user_query: 
     if (last_bid is not None and bid_value < last_bid) or bid_value < auction.starting_price:
         data['summary'] = 'Wrong bid value.'
         data['auctionStartingPrice'] = auction.starting_price
-        data['auctionLastBidValue'] = bid_value
+        data['auctionLastBidValue'] = auction.last_bid_value
+        data['bidValue'] = bid_value
         data['errorMessage'] = 'Bid must be greater than starting price and last bid value.'
         return data, 400
 
@@ -189,13 +189,13 @@ def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
 
     """
     auction_query = Auction.objects.all().filter(id=auction_id)
-    auction = auction_query.first
+    auction = auction_query.first()
     if request.method == "GET":
         auction_bidders = Bids.objects.all().filter(auction=auction).values('user').distinct()
         data = {
             "summary": "Get auction",
             "auctionBiddersCount": int(auction_bidders.count()),
-            "auction": auction_query.first().serialize(),
+            "auction": auction.serialize(),
         }
         return JsonResponse(data, status=200)
 
@@ -204,7 +204,8 @@ def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
         user_query = User.objects.all().filter(id=user_id)
         error_response, error_status = _check_auction_post_request_requirements(auction, user_query, bid_value)
         if error_response and error_status:
-            return JsonResponse(error_response, error_status)
+            print(error_response, error_status)
+            return JsonResponse(error_response, status=error_status)
         else:
             u = user_query.first()
             Bids(auction=auction, user=u, value=bid_value).save()
