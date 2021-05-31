@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from ynvest_tube_server.settings import youtube
 from ynvest_tube_server.ynvest_tube_app.models import User, Auction, Rent, Video, Bids
+from ynvest_tube_server.ynvest_tube_app.tasks import _settle_user
 
 wrong_method_response = JsonResponse({"summary": "Used request method is not allowed for this endpoint."}, status=405)
 
@@ -177,6 +178,21 @@ def _check_auction_post_request_requirements(auction: Auction, user_query: Query
     return data, status
 
 
+def _settle_auctioneers(user: User, auction: Auction, bid_value: int) -> None:
+    """
+    Every bid triggers
+        - current bidder cash reduction,
+        - reimbursement to the previous user (last bidder)
+
+    :param user: currently bidding user
+    :param auction: aimed auction
+    :param bid_value: new bid value of current user (piercing bid)
+    """
+    _settle_user(user, -bid_value)
+    if auction.last_bidder:
+        _settle_user(auction.last_bidder, auction.last_bid_value)
+
+
 @csrf_exempt
 def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
     """
@@ -204,7 +220,6 @@ def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
         user_query = User.objects.all().filter(id=user_id)
         error_response, error_status = _check_auction_post_request_requirements(auction, user_query, bid_value)
         if error_response and error_status:
-            print(error_response, error_status)
             return JsonResponse(error_response, status=error_status)
         else:
             u = user_query.first()
@@ -214,6 +229,7 @@ def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
                 "summary": "Successfully bid on auction",
                 "auction": auction.serialize()
             }
+            _settle_auctioneers(u, auction, bid_value)
             return JsonResponse(data, status=200)
     return wrong_method_response
 
@@ -251,10 +267,12 @@ def get_videos(request: WSGIRequest) -> HttpResponse:
 
     """
     if request.method == "GET":
-        qs = Video.objects.all()
+        videos = Video.objects.all()
         data = {
             "summary": "Get all videos",
-            "videos": _serialize_query_set(qs),
+            "auctionedVideos": _serialize_query_set(videos.filter(state='auctioned')),
+            "rentedVideos": _serialize_query_set(videos.filter(state='rented')),
+            "availableVideos": _serialize_query_set(videos.filter(state='available')),
         }
         return JsonResponse(data, status=200, safe=False)
     return wrong_method_response

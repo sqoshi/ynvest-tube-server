@@ -58,7 +58,8 @@ def close_expired_auctions() -> None:
         if u is not None:
             _set_video(a.video, "rented")
             _assign_rent(a)
-            _settle_user(u, -a.last_bid_value)
+            # _settle_user(u, -a.last_bid_value)
+        _set_video(a.video, "available")
         a.save()
 
     print(f"Closed {len(auctions)} auctions. \nList of closed videos: \n {[x.video.title for x in auctions]}.")
@@ -73,31 +74,38 @@ def generate_auction() -> None:
 
     rent duration = random between 1 hour and 7 days
 
-    each auction lasts 15 minutes
+    each auction lasts between 15 and 20 minutes
 
     max auctions = 10
 
     :interval 1 call per 1800 s
     """
+    minutes = random.randint(15, 20)
+    max_auctions = 10
+    auction_timedelta = timezone.timedelta(minutes=minutes)
     active_auctions = Auction.objects.filter(state='active', rental_expiration_date__gt=timezone.now())
-    if len(active_auctions) < 10:
-        print(f"Generating auction #{len(Auction.objects.all())} ...")
+    if len(active_auctions) < max_auctions:
+        new_auction_id = len(Auction.objects.all())
+        print(f"Generating auction #{new_auction_id} ...")
 
         available_videos = Video.objects.all().filter(state='available')
-        v = random.choice(available_videos)
-        _set_video(v, "auctioned")
+        if available_videos:
+            v = random.choice(available_videos)
+            _set_video(v, "auctioned")
 
-        random_time_delta = timezone.timedelta(days=random.randint(0, 6), hours=random.randint(1, 24))
-        auction = Auction(starting_price=random.randint(200, 500),
-                          # random.randint(int(1 / 100 * v.views), int(5 / 100 * v.views)),
-                          video=v,
-                          rental_duration=random_time_delta,
-                          auction_expiration_date=timezone.now() + timezone.timedelta(minutes=15),
-                          rental_expiration_date=timezone.now() + random_time_delta,
-                          video_views_on_sold=v.views)
-        auction.save()
+            random_time_delta = timezone.timedelta(days=random.randint(0, 6), hours=random.randint(1, 24))
+            auction = Auction(starting_price=random.randint(200, 500),
+                              # random.randint(int(1 / 100 * v.views), int(5 / 100 * v.views)),
+                              video=v,
+                              rental_duration=random_time_delta,
+                              auction_expiration_date=timezone.now() + auction_timedelta,
+                              rental_expiration_date=timezone.now() + random_time_delta,
+                              video_views_on_sold=v.views)
+            auction.save()
 
-        print(f"Generated auction #{len(Auction.objects.all()) - 1}.")
+            print(f"Generated auction #{new_auction_id}.")
+        else:
+            print(f"Auction #{new_auction_id} generation failed. \nReason: `No available videos in database`")
 
 
 def _collect_videos_statistics(objects: List, result_limit: int = 50) -> List:
