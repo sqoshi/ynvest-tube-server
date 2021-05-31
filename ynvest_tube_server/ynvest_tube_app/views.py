@@ -1,6 +1,6 @@
 import json
 import random
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Union
 
 import requests
 from django.core.handlers.wsgi import WSGIRequest
@@ -32,7 +32,7 @@ def register_user(request: WSGIRequest) -> Optional[HttpResponse]:
     return wrong_method_response
 
 
-def _load_data_from(request: WSGIRequest, *args: str) -> List:
+def _load_data_from(request: WSGIRequest, *args: str) -> Union[List, str, int]:
     """
     Load data from request by transforming request to json. [python dict]
 
@@ -40,7 +40,8 @@ def _load_data_from(request: WSGIRequest, *args: str) -> List:
     :return: list of selected request body elements
     """
     data = json.loads(request.body)
-    return [data[arg] if arg in data.keys() else None for arg in args]
+    rs = [data[arg] if arg in data.keys() else None for arg in args]
+    return rs if len(rs) > 1 else rs[0]
 
 
 @csrf_exempt
