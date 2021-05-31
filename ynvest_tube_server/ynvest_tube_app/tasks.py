@@ -1,4 +1,5 @@
 import random
+import sys
 from typing import List
 
 from django.utils import timezone
@@ -186,9 +187,32 @@ def settle_users_rents() -> None:
     print(f'Settled {len(rents)} rents.')
 
 
+def _choose_loyalty_degree(days: int, max_level=6, cash_base: int = 500, interval_base: int = 30) -> int:
+    """
+    Designates payout by specifying the degree of loyalty
+
+    :param days: since user registration
+    :param max_level: loyalty max level
+    :return: payout value
+    """
+    loyalty_payout = [cash_base * i for i in range(1, max_level)]
+    loyalty_period = [interval_base * i for i in range(max_level)] + [sys.maxsize]
+    for p, v in zip(loyalty_period, loyalty_payout):
+        if days < p:
+            return v
+    return 0
+
+
 @celery_app.task(name='payout_loyalty_cash')
 def payout_loyalty_cash() -> None:
-    loyalty_degree = [500 * i for i in range(1, 6)]
+    """
+    Periodically payouts loyal free cash.
+
+    Counts since registration.
+
+    :interval 1 call per 7 days
+    """
     users = User.objects.all()
     for u in users:
-        _settle_user(u, loyalty_degree[1])
+        d = (timezone.now() - u.creation_date).days
+        _settle_user(u, _choose_loyalty_degree(d))
