@@ -184,3 +184,11 @@ def settle_users_rents() -> None:
         _deactivate_rent(r, views_diff)
 
     print(f'Settled {len(rents)} rents.')
+
+
+@celery_app.task(name='payout_loyalty_cash')
+def payout_loyalty_cash() -> None:
+    loyalty_degree = [500 * i for i in range(1, 6)]
+    users = User.objects.all()
+    for u in users:
+        _settle_user(u, loyalty_degree[1])
