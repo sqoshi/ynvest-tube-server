@@ -8,4 +8,4 @@ virtualenv -q -p /usr/bin/python3 venv
 source venv/bin/activate
 venv/bin/pip install -r requirements.txt
 python manage.py makemigrations
-python manage.py migrate
+python manage.py migrate --run-syncdb
