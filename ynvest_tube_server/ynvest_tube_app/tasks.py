@@ -60,7 +60,8 @@ def close_expired_auctions() -> None:
             _set_video(a.video, "rented")
             _assign_rent(a)
             # _settle_user(u, -a.last_bid_value)
-        _set_video(a.video, "available")
+        else:
+            _set_video(a.video, "available")
         a.save()
 
     print(f"Closed {len(auctions)} auctions. \nList of closed videos: \n {[x.video.title for x in auctions]}.")
