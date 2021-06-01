@@ -334,7 +334,6 @@ def insert_youtube_videos(request: WSGIRequest):
 
         video_statistics = youtube.videos().list(id=videos_id_string, part='statistics')
         stats = video_statistics.execute()
-        print(snippets["items"], stats["items"])
         for v_snip, v_stats in zip(snippets["items"], stats["items"]):
             v = Video(title=_fix_punctuation_marks(v_snip['snippet']['title']),
                       description=_fix_punctuation_marks(v_snip['snippet']['description']),

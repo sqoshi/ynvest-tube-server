@@ -49,9 +49,10 @@ def close_expired_auctions() -> None:
     :interval very often 1 per 1 s
 
     """
-    print("Searching for closeable auctions...")
     auctions = Auction.objects.filter(state='active', auction_expiration_date__lte=timezone.now())
 
+    if auctions:
+        print("Searching for closeable auctions...")
     for a in auctions:
         a.state = 'inactive'
         # a.video_views_on_sold = a.video.views
@@ -63,8 +64,8 @@ def close_expired_auctions() -> None:
         else:
             _set_video(a.video, "available")
         a.save()
-
-    print(f"Closed {len(auctions)} auctions. \nList of closed videos: \n {[x.video.title for x in auctions]}.")
+    if auctions:
+        print(f"Closed {len(auctions)} auctions. \nList of closed videos: \n {[x.video.title for x in auctions]}.")
 
 
 @celery_app.task(name='generate_auction')
@@ -105,7 +106,7 @@ def generate_auction() -> None:
                               video_views_on_sold=v.views)
             auction.save()
 
-            print(f"Generated auction #{new_auction_id}.")
+            print(f"Generated auction #{new_auction_id}. Auctioned video: {v.title}")
         else:
             print(f"Auction #{new_auction_id} generation failed. \nReason: `No available videos in database`")
 
@@ -174,8 +175,10 @@ def settle_users_rents() -> None:
 
     :interval 1 call per 1 s
     """
-    print(f'Settling rents...')
     rents = list(Rent.objects.filter(auction__rental_expiration_date__lte=timezone.now()))
+    if rents:
+        print(f'Settling rents...')
+
     for r in rents:
         u, a, v = r.user, r.auction, r.auction.video
         views_diff = v.views - a.video_views_on_sold
@@ -185,7 +188,8 @@ def settle_users_rents() -> None:
         _set_video(v, "available")
         _deactivate_rent(r, views_diff)
 
-    print(f'Settled {len(rents)} rents.')
+    if rents:
+        print(f'Settled {len(rents)} rents.')
 
 
 def _choose_loyalty_degree(days: int, max_level=6, cash_base: int = 500, interval_base: int = 30) -> int:
