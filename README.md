@@ -37,7 +37,7 @@ concern Linux systems.
 Installation process may be automated via script `install.sh`.
 
 1. `chmod +rwx install.sh`
-2. `./install.sh`
+2. `sudo ./install.sh`
 
 ### Manual
 
