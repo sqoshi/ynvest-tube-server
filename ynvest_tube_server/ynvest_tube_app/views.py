@@ -93,17 +93,28 @@ def get_user_details(request: WSGIRequest) -> Optional[HttpResponse]:
     return wrong_method_response
 
 
+def _extend_auctions_data(query_set: QuerySet, user_id: str):
+    result = []
+    for a in query_set:
+        auction_serialized = a.serialize()
+        auction_serialized['user_contribution'] = _specify_relation((a, user_id))
+        result.append(auction_serialized)
+    return result
+
+
 def get_auctions(request: WSGIRequest) -> HttpResponse:
     """
     List all auctions existed in database.
 
     """
-    if request.method == "GET":
-        qs = Auction.objects.all()
+    if request.method == "POST":
+        auctions = Auction.objects.all()
+        user_id = _load_data_from(request, "UserId")
+
         data = {
             "summary": "Get all auctions",
-            "activeAuctions": _serialize_query_set(qs.filter(state="active")),
-            "inactiveAuctions": _serialize_query_set(qs.filter(state="inactive")),
+            "activeAuctions": _extend_auctions_data(auctions.filter(state="active"), user_id),
+            "inactiveAuctions": _serialize_query_set(auctions.filter(state="inactive")),
         }
         return JsonResponse(data, status=200, safe=False)
     return wrong_method_response
@@ -179,6 +190,33 @@ def _check_auction_post_request_requirements(auction: Auction, user_query: Query
     return data, status
 
 
+def _specify_relation(*args) -> int:
+    """
+    Specify relation between auction and user.
+
+    Possible results
+        0 - had not participated in auction,
+        1 - user had bid in auction, but is not winning
+        2 - user is winning auction (biggest bid)
+
+    It may be one liner but its not simply readable.
+    """
+    result = []
+    for tup in args:
+        auction, user_id = tup
+        user = User.objects.all().filter(user_id=user_id).first()
+        had_participated = Bids.objects.all().filter(auction=auction, user=user)
+        if had_participated:
+            is_winning = user == auction.last_bidder
+            if is_winning:
+                result.append(2)
+            else:
+                result.append(1)
+        else:
+            result.append(0)
+    return result if len(result) > 1 else result.pop()
+
+
 def _settle_auctioneers(user: User, auction: Auction, bid_value: int) -> None:
     """
     Every bid triggers
@@ -207,16 +245,21 @@ def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
     """
     auction_query = Auction.objects.all().filter(id=auction_id)
     auction = auction_query.first()
-    if request.method == "GET":
+    if request.method == "POST":
+        user_id = _load_data_from(request, "UserId")
         auction_bidders = Bids.objects.all().filter(auction=auction).values('user').distinct()
+
+        serialized_auction = auction.serialize()
+        serialized_auction["user_contribution"] = _specify_relation((auction, user_id))
+
         data = {
             "summary": "Get auction",
             "auctionBiddersCount": int(auction_bidders.count()),
-            "auction": auction.serialize(),
+            "auction": serialized_auction,
         }
         return JsonResponse(data, status=200)
 
-    elif request.method == "POST":
+    elif request.method == "PUT":
         user_id, bid_value = _load_data_from(request, "UserId", "bidValue")
         user_query = User.objects.all().filter(id=user_id)
         error_response, error_status = _check_auction_post_request_requirements(auction, user_query, bid_value)

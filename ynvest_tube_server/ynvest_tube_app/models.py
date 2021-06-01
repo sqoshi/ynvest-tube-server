@@ -64,9 +64,14 @@ class Auction(models.Model, Serializable):
     video = models.ForeignKey(Video, on_delete=CASCADE)
     rental_duration = models.DurationField()
     # rental_begin_date = models.DateTimeField(auto_now=True)
-    auction_expiration_date = models.DateTimeField(default=timezone.now() - timezone.timedelta(days=10))
+    auction_expiration_date = models.DateTimeField(default=timezone.now() + timezone.timedelta(hours=1))
     rental_expiration_date = models.DateTimeField()
     video_views_on_sold = models.IntegerField(null=True, default=None)
+
+    def serialize(self: models.Model) -> Dict:
+        d = super().serialize()
+        del d['last_bidder']
+        return d
 
 
 class Rent(models.Model, Serializable):

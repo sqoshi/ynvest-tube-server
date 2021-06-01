@@ -69,7 +69,7 @@ def close_expired_auctions() -> None:
 
 
 @celery_app.task(name='generate_auction')
-def generate_auction() -> None:
+def generate_auction(max_auctions=10) -> None:
     """
     Generates random auction with random video.
 
@@ -83,8 +83,7 @@ def generate_auction() -> None:
 
     :interval 1 call per 1800 s
     """
-    minutes = random.randint(15, 20)
-    max_auctions = 10
+    minutes = random.randint(10, 20)
     auction_timedelta = timezone.timedelta(minutes=minutes)
     active_auctions = Auction.objects.filter(state='active', rental_expiration_date__gt=timezone.now())
     if len(active_auctions) < max_auctions:
