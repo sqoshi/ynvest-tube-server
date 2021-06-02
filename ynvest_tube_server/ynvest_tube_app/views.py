@@ -93,13 +93,21 @@ def get_user_details(request: WSGIRequest) -> Optional[HttpResponse]:
     return wrong_method_response
 
 
-def _extend_auctions_data(query_set: QuerySet, user_id: str):
+def _extend_auctions_data(query_set: QuerySet, user_id: str) -> List:
+    """
+    Extends auction details by user contribution state.
+
+    :param query_set: list of auctions
+    :param user_id: UUID
+    :return:  list of auctions extended by their relation with user
+    """
     result = []
     for a in query_set:
         auction_serialized = a.serialize()
         auction_serialized['user_contribution'] = _specify_relation((a, user_id))
         result.append(auction_serialized)
     return result
+
 
 @csrf_exempt
 def get_auctions(request: WSGIRequest) -> HttpResponse:
@@ -204,7 +212,7 @@ def _specify_relation(*args) -> int:
     result = []
     for tup in args:
         auction, user_id = tup
-        user = User.objects.all().filter(user_id=user_id).first()
+        user = User.objects.all().filter(id=user_id).first()
         had_participated = Bids.objects.all().filter(auction=auction, user=user)
         if had_participated:
             is_winning = user == auction.last_bidder
@@ -360,6 +368,7 @@ def _fix_punctuation_marks(text: str) -> str:
     text = text.replace('&quot;', '"')
     text = text.replace('&#39;', '"')
     return text.replace('&amp;', '&')
+
 
 @csrf_exempt
 def insert_youtube_videos(request: WSGIRequest):
