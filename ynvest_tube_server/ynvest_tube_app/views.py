@@ -255,8 +255,7 @@ def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
     auction = auction_query.first()
     if request.method == "POST":
         user_id = _load_data_from(request, "UserId")
-        auction_bidders = Bids.objects.all().filter(auction=auction).values('user').distinct()
-
+        auction_bidders = Bids.objects.all().filter(auction=auction).values_list('user').distinct()
         serialized_auction = auction.serialize()
         serialized_auction["user_contribution"] = _specify_relation((auction, user_id))
 
