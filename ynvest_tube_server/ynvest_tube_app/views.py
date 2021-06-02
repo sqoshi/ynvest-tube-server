@@ -101,7 +101,7 @@ def _extend_auctions_data(query_set: QuerySet, user_id: str):
         result.append(auction_serialized)
     return result
 
-
+@csrf_exempt
 def get_auctions(request: WSGIRequest) -> HttpResponse:
     """
     List all auctions existed in database.
@@ -361,7 +361,7 @@ def _fix_punctuation_marks(text: str) -> str:
     text = text.replace('&#39;', '"')
     return text.replace('&amp;', '&')
 
-
+@csrf_exempt
 def insert_youtube_videos(request: WSGIRequest):
     """
     Insert multiple random youtube videos to database
