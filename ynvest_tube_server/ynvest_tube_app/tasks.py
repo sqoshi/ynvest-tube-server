@@ -174,7 +174,7 @@ def settle_users_rents() -> None:
 
     :interval 1 call per 1 s
     """
-    rents = list(Rent.objects.filter(auction__rental_expiration_date__lte=timezone.now()))
+    rents = list(Rent.objects.filter(auction__rental_expiration_date__lte=timezone.now(), state='active'))
     if rents:
         print(f'Settling rents...')
 

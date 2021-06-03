@@ -30,5 +30,6 @@ urlpatterns = [
     path('videos', views.get_videos, name='get_videos'),
     path('videos/random-insert', views.insert_youtube_videos, name='insert_youtube_videos'),
     path('rents', views.get_rents, name='get_rents'),
+    path('rents/insert-expired-rent', views.insert_expired_rent, name='insert_expired_rent'),
 
 ]

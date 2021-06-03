@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Tuple, Union
 import requests
 from django.core.handlers.wsgi import WSGIRequest
 from django.db.models import QuerySet
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -16,7 +16,7 @@ from ynvest_tube_server.ynvest_tube_app.tasks import _settle_user
 wrong_method_response = JsonResponse({"summary": "Used request method is not allowed for this endpoint."}, status=405)
 
 
-def register_user(request: WSGIRequest) -> Optional[HttpResponse]:
+def register_user(request: WSGIRequest) -> Optional[JsonResponse]:
     """
     Register new user in database. ( uuid generator)
 
@@ -45,7 +45,7 @@ def _load_data_from(request: WSGIRequest, *args: str) -> Union[List, str, int]:
 
 
 @csrf_exempt
-def get_user(request: WSGIRequest) -> HttpResponse:
+def get_user(request: WSGIRequest) -> JsonResponse:
     """
     Gets specified user.
 
@@ -63,7 +63,7 @@ def get_user(request: WSGIRequest) -> HttpResponse:
 
 
 @csrf_exempt
-def get_user_details(request: WSGIRequest) -> Optional[HttpResponse]:
+def get_user_details(request: WSGIRequest) -> Optional[JsonResponse]:
     """
     Display detailed data about user
             - cash
@@ -110,7 +110,7 @@ def _extend_auctions_data(query_set: QuerySet, user_id: str) -> List:
 
 
 @csrf_exempt
-def get_auctions(request: WSGIRequest) -> HttpResponse:
+def get_auctions(request: WSGIRequest) -> JsonResponse:
     """
     List all auctions existed in database.
 
@@ -122,6 +122,16 @@ def get_auctions(request: WSGIRequest) -> HttpResponse:
         data = {
             "summary": "Get all auctions",
             "activeAuctions": _extend_auctions_data(auctions.filter(state="active"), user_id),
+            "inactiveAuctions": _serialize_query_set(auctions.filter(state="inactive")),
+        }
+        return JsonResponse(data, status=200, safe=False)
+
+    if request.method == "GET":
+        auctions = Auction.objects.all()
+
+        data = {
+            "summary": "Get all auctions",
+            "activeAuctions": _serialize_query_set(auctions.filter(state="active")),
             "inactiveAuctions": _serialize_query_set(auctions.filter(state="inactive")),
         }
         return JsonResponse(data, status=200, safe=False)
@@ -241,7 +251,7 @@ def _settle_auctioneers(user: User, auction: Auction, bid_value: int) -> None:
 
 
 @csrf_exempt
-def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
+def get_auction(request: WSGIRequest, auction_id: int) -> JsonResponse:
     """
     On GET request returns specific auction
 
@@ -264,6 +274,7 @@ def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
             "auctionBiddersCount": int(auction_bidders.count()),
             "auction": serialized_auction,
         }
+
         return JsonResponse(data, status=200)
 
     elif request.method == "PUT":
@@ -275,7 +286,10 @@ def get_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
         else:
             u = user_query.first()
             Bids(auction=auction, user=u, value=bid_value).save()
-            auction_query.update(last_bidder=u, last_bid_value=bid_value)
+            # auction_query.update(last_bidder=u, last_bid_value=bid_value)
+            auction.last_bidder = u
+            auction.last_bid_value = bid_value
+            auction.save()
             data = {
                 "summary": "Successfully bid on auction",
                 "auction": auction.serialize()
@@ -297,7 +311,7 @@ def _serialize_query_set(query_set: QuerySet) -> List[Dict]:
 
 ##################################################### DEVELOPMENT ######################################################
 
-def get_users(request: WSGIRequest) -> HttpResponse:
+def get_users(request: WSGIRequest) -> JsonResponse:
     """
     List all users in database.
 
@@ -312,7 +326,51 @@ def get_users(request: WSGIRequest) -> HttpResponse:
     return wrong_method_response
 
 
-def get_videos(request: WSGIRequest) -> HttpResponse:
+@csrf_exempt
+def insert_expired_rent(request: WSGIRequest) -> JsonResponse:
+    """
+    Insert expired rent for user.
+
+    Requires UserId in body
+
+    Creating fake expired auction for random video,.
+    User won by bid starting_price + 1, bid is being stored in database.
+
+    :param request: wsgi request
+    """
+    if request.method == "POST":
+        user_id = _load_data_from(request, "UserId")
+        u = User.objects.all().filter(id=user_id).first()
+        v = random.choice(list(Video.objects.all()))
+        sp = random.randint(10, 600)
+        rtd = timezone.timedelta(days=random.randint(1, 10))
+        a = Auction(state='inactive',
+                    starting_price=sp,
+                    last_bid_value=sp + 1,
+                    last_bidder=u,
+                    video=v,
+                    rental_duration=rtd,
+                    auction_expiration_date=timezone.now() - timezone.timedelta(days=random.randint(7, 10)),
+                    rental_expiration_date=timezone.now() - timezone.timedelta(days=random.randint(2, 4)),
+                    video_views_on_sold=v.views
+                    )
+        a.save()
+        r = Rent(u, a, 'inactive', profit=0)
+        r.save()
+        b = Bids(a, u, sp + 1)
+        b.save()
+        data = {
+            "summary": "Inserted expired rent for user.",
+            "user": u.serialize(),
+            "auction": a.serialize(),
+            "rent": r.serialize(),
+            "bid": b.serialize(),
+        }
+        return JsonResponse(data, status=200)
+    return wrong_method_response
+
+
+def get_videos(request: WSGIRequest) -> JsonResponse:
     """
     List all videos existing in database.
 
@@ -329,7 +387,7 @@ def get_videos(request: WSGIRequest) -> HttpResponse:
     return wrong_method_response
 
 
-def get_rents(request: WSGIRequest) -> HttpResponse:
+def get_rents(request: WSGIRequest) -> JsonResponse:
     """
     List all rents existing in database.
 
@@ -400,7 +458,7 @@ def insert_youtube_videos(request: WSGIRequest):
     return redirect('get_videos')
 
 
-def close_auction(request: WSGIRequest, auction_id: int) -> HttpResponse:
+def close_auction(request: WSGIRequest, auction_id: int) -> JsonResponse:
     """
     Closes auction.
 

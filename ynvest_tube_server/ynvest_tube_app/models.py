@@ -86,7 +86,7 @@ class Rent(models.Model, Serializable):
     profit = models.IntegerField(null=True, default=None)
 
 
-class Bids(models.Model):
+class Bids(models.Model, Serializable):
     """
     Stores all bids.
 
