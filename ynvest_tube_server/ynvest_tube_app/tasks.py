@@ -32,7 +32,7 @@ def _settle_user(user: User, value: int) -> None:
     Reduce user cash
 
     """
-    print(f' {user} settled by {value}')
+    # print(f' {user} settled by {value}')
     user.cash += value
     user.save()
 
@@ -70,7 +70,7 @@ def close_expired_auctions() -> None:
 
 
 @celery_app.task(name='generate_auction')
-def generate_auction(max_auctions=10) -> None:
+def generate_auction(max_auctions=10, seconds_interval=random.randint(10 * 60, 20 * 60)) -> None:
     """
     Generates random auction with random video.
 
@@ -78,14 +78,13 @@ def generate_auction(max_auctions=10) -> None:
 
     rent duration = random between 1 hour and 7 days
 
-    each auction lasts between 15 and 20 minutes
+    each auction lasts between seconds_interval
 
     max auctions = 10
 
     :interval 1 call per 1800 s
     """
-    minutes = random.randint(10, 20)
-    auction_timedelta = timezone.timedelta(minutes=minutes)
+    auction_timedelta = timezone.timedelta(seconds=seconds_interval)
     active_auctions = Auction.objects.filter(state='active', rental_expiration_date__gt=timezone.now())
     if len(active_auctions) < max_auctions:
         new_auction_id = len(Auction.objects.all())

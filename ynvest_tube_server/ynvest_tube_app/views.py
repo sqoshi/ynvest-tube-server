@@ -408,10 +408,12 @@ def get_rents(request: WSGIRequest) -> JsonResponse:
 
     """
     if request.method == "GET":
-        qs = Rent.objects.all()
+        active_rents = Rent.objects.all().filter(state='active')
+        inactive_rents = Rent.objects.all().filter(state='inactive')
         data = {
             "summary": "Get all rents",
-            "rents": _serialize_query_set(qs),
+            "activeRents": _serialize_query_set(active_rents),
+            "inactiveRents": _serialize_query_set(inactive_rents),
         }
         return JsonResponse(data, status=200, safe=False)
     return wrong_method_response

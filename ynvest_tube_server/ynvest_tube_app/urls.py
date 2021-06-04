@@ -24,13 +24,13 @@ urlpatterns = [
     path('user/details', views.get_user_details, name='get_user_details'),
     path('auctions', views.get_auctions, name='get_auctions'),
     path('auctions/<int:auction_id>', views.get_auction, name='get_auction'),
-    # auxiliary endpoints
+    # debug endpoints
     path('bids', views.get_bids, name='get_bids'),
     path('users', views.get_users, name='get_users'),
     path('auctions/<int:auction_id>/close', views.close_auction, name='close_auction'),
     path('videos', views.get_videos, name='get_videos'),
     path('videos/random-insert', views.insert_youtube_videos, name='insert_youtube_videos'),
     path('rents', views.get_rents, name='get_rents'),
-    path('rents/insert-expired-rent', views.insert_expired_rent, name='insert_expired_rent'),
+    path('rents/insert-expired', views.insert_expired_rent, name='insert_expired_rent'),
 
 ]
