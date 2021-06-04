@@ -289,12 +289,12 @@ def get_auction(request: WSGIRequest, auction_id: int) -> JsonResponse:
             # auction_query.update(last_bidder=u, last_bid_value=bid_value)
             auction.last_bidder = u
             auction.last_bid_value = bid_value
+            _settle_auctioneers(u, auction, bid_value)
             auction.save()
             data = {
                 "summary": "Successfully bid on auction",
                 "auction": auction.serialize()
             }
-            _settle_auctioneers(u, auction, bid_value)
             return JsonResponse(data, status=200)
     return wrong_method_response
 
@@ -382,6 +382,38 @@ def get_videos(request: WSGIRequest) -> JsonResponse:
             "auctionedVideos": _serialize_query_set(videos.filter(state='auctioned')),
             "rentedVideos": _serialize_query_set(videos.filter(state='rented')),
             "availableVideos": _serialize_query_set(videos.filter(state='available')),
+        }
+        return JsonResponse(data, status=200, safe=False)
+    return wrong_method_response
+
+
+def get_videos(request: WSGIRequest) -> JsonResponse:
+    """
+    List all videos existing in database.
+
+    """
+    if request.method == "GET":
+        videos = Video.objects.all()
+        data = {
+            "summary": "Get all videos",
+            "auctionedVideos": _serialize_query_set(videos.filter(state='auctioned')),
+            "rentedVideos": _serialize_query_set(videos.filter(state='rented')),
+            "availableVideos": _serialize_query_set(videos.filter(state='available')),
+        }
+        return JsonResponse(data, status=200, safe=False)
+    return wrong_method_response
+
+
+def get_bids(request: WSGIRequest) -> JsonResponse:
+    """
+    List all bids existing in database.
+
+    """
+    if request.method == "GET":
+        bids = Bids.objects.all()
+        data = {
+            "summary": "Get all bids",
+            "allBids": _serialize_query_set(bids),
         }
         return JsonResponse(data, status=200, safe=False)
     return wrong_method_response

@@ -25,6 +25,7 @@ urlpatterns = [
     path('auctions', views.get_auctions, name='get_auctions'),
     path('auctions/<int:auction_id>', views.get_auction, name='get_auction'),
     # auxiliary endpoints
+    path('bids', views.get_bids, name='get_bids'),
     path('users', views.get_users, name='get_users'),
     path('auctions/<int:auction_id>/close', views.close_auction, name='close_auction'),
     path('videos', views.get_videos, name='get_videos'),
