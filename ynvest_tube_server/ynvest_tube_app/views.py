@@ -287,9 +287,9 @@ def get_auction(request: WSGIRequest, auction_id: int) -> JsonResponse:
             u = user_query.first()
             Bids(auction=auction, user=u, value=bid_value).save()
             # auction_query.update(last_bidder=u, last_bid_value=bid_value)
+            _settle_auctioneers(u, auction, bid_value)
             auction.last_bidder = u
             auction.last_bid_value = bid_value
-            _settle_auctioneers(u, auction, bid_value)
             auction.save()
             data = {
                 "summary": "Successfully bid on auction",
