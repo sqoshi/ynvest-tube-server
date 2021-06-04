@@ -355,9 +355,9 @@ def insert_expired_rent(request: WSGIRequest) -> JsonResponse:
                     video_views_on_sold=v.views
                     )
         a.save()
-        r = Rent(u, a, 'inactive', profit=0)
+        r = Rent(user=u, auction=a, state='inactive', profit=0)
         r.save()
-        b = Bids(a, u, sp + 1)
+        b = Bids(auction=a, user=u, value=sp + 1)
         b.save()
         data = {
             "summary": "Inserted expired rent for user.",
