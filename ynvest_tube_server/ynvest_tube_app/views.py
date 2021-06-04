@@ -164,7 +164,7 @@ def _check_auction_post_request_cash_requirements(auction: Auction, user_query: 
 
     last_bid = auction.last_bid_value
     # check bid value correctness
-    if (last_bid is not None and bid_value < last_bid) or bid_value < auction.starting_price:
+    if (last_bid is not None and bid_value <= last_bid) or bid_value <= auction.starting_price:
         data['summary'] = 'Wrong bid value.'
         data['auctionStartingPrice'] = auction.starting_price
         data['auctionLastBidValue'] = auction.last_bid_value
@@ -367,23 +367,6 @@ def insert_expired_rent(request: WSGIRequest) -> JsonResponse:
             "bid": b.serialize(),
         }
         return JsonResponse(data, status=200)
-    return wrong_method_response
-
-
-def get_videos(request: WSGIRequest) -> JsonResponse:
-    """
-    List all videos existing in database.
-
-    """
-    if request.method == "GET":
-        videos = Video.objects.all()
-        data = {
-            "summary": "Get all videos",
-            "auctionedVideos": _serialize_query_set(videos.filter(state='auctioned')),
-            "rentedVideos": _serialize_query_set(videos.filter(state='rented')),
-            "availableVideos": _serialize_query_set(videos.filter(state='available')),
-        }
-        return JsonResponse(data, status=200, safe=False)
     return wrong_method_response
 
 

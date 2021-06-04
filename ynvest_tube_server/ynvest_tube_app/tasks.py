@@ -32,6 +32,7 @@ def _settle_user(user: User, value: int) -> None:
     Reduce user cash
 
     """
+    print(f' {user} settled by {value}')
     user.cash += value
     user.save()
 
