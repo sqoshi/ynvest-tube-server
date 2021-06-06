@@ -1,5 +1,6 @@
 amqp==5.0.6
 anyjson==0.3.3
+appdirs==1.4.4
 asgiref==3.3.4
 billiard==3.6.4.0
 cachetools==4.2.2
@@ -12,10 +13,12 @@ click-didyoumean==0.0.3
 click-plugins==1.1.1
 click-repl==0.1.6
 cryptography==3.4.7
+distlib==0.3.2
 Django==3.2.3
 django-celery-beat==2.2.0
 django-swagger-render==0.1.1
 django-timezone-field==4.1.2
+filelock==3.0.12
 google-api-core==1.28.0
 google-api-python-client==2.5.0
 google-auth==1.30.0
@@ -29,6 +32,7 @@ kombu==5.0.2
 Markdown==3.3.4
 oauthlib==3.1.0
 packaging==20.9
+pkg-resources==0.0.0
 prompt-toolkit==3.0.18
 protobuf==3.17.0
 pyasn1==0.4.8
@@ -49,4 +53,5 @@ sqlparse==0.4.1
 uritemplate==3.0.1
 urllib3==1.26.4
 vine==5.0.0
+virtualenv==20.4.7
 wcwidth==0.2.5
