@@ -87,7 +87,7 @@ paths:
           required: true
           type: integer
         - in: body
-          name: "userid"
+          name: "UserId"
           schema:
             $ref: '#/definitions/UserId'
       responses:
@@ -162,6 +162,32 @@ paths:
           description: 'Rent list retrieved successfully'
           schema:
             $ref: '#/definitions/RentList'
+        '405':
+          description: Bad method
+
+
+  /rents/insert-expired:
+    post:
+      summary: 'Assign expired rent to user'
+      tags:
+        - development
+      responses:
+        '200':
+          description: 'Expired rent succesfully inserted'
+
+        '405':
+          description: Bad method
+
+  /bids:
+    get:
+      summary: 'Get all bids'
+      tags:
+        - development
+      responses:
+        '200':
+          description: 'Bids list retrieved successfully'
+          schema:
+            $ref: '#/definitions/BidList'
         '405':
           description: Bad method
 
@@ -281,6 +307,11 @@ definitions:
     type: array
     items:
       $ref: '#/definitions/Rent'
+
+  BidList:
+    type: array
+    items:
+      $ref: '#/definitions/Bid'
 
   Bid:
     type: object

@@ -4,6 +4,22 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 from ynvest_tube_server.ynvest_tube_app.models import Auction, Bids, User
+from ynvest_tube_server.ynvest_tube_app.tasks_service import settle_user
+
+
+def settle_auctioneers(user: User, auction: Auction, bid_value: int) -> None:
+    """
+    Every bid triggers
+        - current bidder cash reduction,
+        - reimbursement to the previous user (last bidder)
+
+    :param user: currently bidding user
+    :param auction: aimed auction
+    :param bid_value: new bid value of current user (piercing bid)
+    """
+    settle_user(user, -bid_value)
+    if auction.last_bidder:
+        settle_user(auction.last_bidder, auction.last_bid_value)
 
 
 def specify_relation(*args) -> int:

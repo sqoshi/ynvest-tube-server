@@ -8,9 +8,9 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from ynvest_tube_server.settings import youtube
 from ynvest_tube_server.ynvest_tube_app.models import User, Auction, Rent, Video, Bids
-from ynvest_tube_server.ynvest_tube_app.tasks import settle_user
+from ynvest_tube_server.ynvest_tube_app.tasks_service import set_video, assign_rent
 from ynvest_tube_server.ynvest_tube_app.views_helpers.auction import extend_auctions_data, specify_relation, \
-    check_auction_post_request_requirements
+    check_auction_post_request_requirements, settle_auctioneers
 from ynvest_tube_server.ynvest_tube_app.views_helpers.shared import load_data_from, serialize_query_set
 from ynvest_tube_server.ynvest_tube_app.views_helpers.video import get_random_words, fix_punctuation_marks
 
@@ -111,21 +111,6 @@ def get_auctions(request: WSGIRequest) -> JsonResponse:
     return wrong_method_response
 
 
-def _settle_auctioneers(user: User, auction: Auction, bid_value: int) -> None:
-    """
-    Every bid triggers
-        - current bidder cash reduction,
-        - reimbursement to the previous user (last bidder)
-
-    :param user: currently bidding user
-    :param auction: aimed auction
-    :param bid_value: new bid value of current user (piercing bid)
-    """
-    settle_user(user, -bid_value)
-    if auction.last_bidder:
-        settle_user(auction.last_bidder, auction.last_bid_value)
-
-
 @csrf_exempt
 def get_auction(request: WSGIRequest, auction_id: int) -> JsonResponse:
     """
@@ -162,8 +147,7 @@ def get_auction(request: WSGIRequest, auction_id: int) -> JsonResponse:
         else:
             u = user_query.first()
             Bids(auction=auction, user=u, value=bid_value).save()
-            # auction_query.update(last_bidder=u, last_bid_value=bid_value)
-            _settle_auctioneers(u, auction, bid_value)
+            settle_auctioneers(u, auction, bid_value)
             auction.last_bidder = u
             auction.last_bid_value = bid_value
             auction.save()
@@ -321,20 +305,19 @@ def close_auction(request: WSGIRequest, auction_id: int) -> JsonResponse:
     """
     Closes auction.
 
-    FIXME: its not working properly
-
     """
     if request.method == "DELETE":
-        auction = Auction.objects.all().filter(id=auction_id)
-        auction.update(state="inactive")
-        auction = auction.first()
-
-        rent = Rent(user=auction.last_bidder, auction=auction)
-        rent.save()
+        a = Auction.objects.all().filter(id=auction_id).first()
+        a.state = 'inactive'
+        if a.last_bidder is not None:
+            set_video(a.video, "rented")
+            assign_rent(a)
+        else:
+            set_video(a.video, "available")
+        a.save()
         data = {
             "summary": "Auction closed. Transaction saved in database.",
-            "auction": auction.serialize(),
-            "rent": rent.serialize()
+            "auction": a.serialize(),
         }
         return JsonResponse(data, status=200)
     return wrong_method_response
