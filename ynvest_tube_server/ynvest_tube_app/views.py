@@ -1,17 +1,18 @@
-import json
 import random
-from typing import Optional, List, Dict, Tuple, Union
+from typing import Optional
 
-import requests
 from django.core.handlers.wsgi import WSGIRequest
-from django.db.models import QuerySet
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from ynvest_tube_server.settings import youtube
 from ynvest_tube_server.ynvest_tube_app.models import User, Auction, Rent, Video, Bids
-from ynvest_tube_server.ynvest_tube_app.tasks import _settle_user
+from ynvest_tube_server.ynvest_tube_app.tasks import settle_user
+from ynvest_tube_server.ynvest_tube_app.views_helpers.auction import extend_auctions_data, specify_relation, \
+    check_auction_post_request_requirements
+from ynvest_tube_server.ynvest_tube_app.views_helpers.shared import load_data_from, serialize_query_set
+from ynvest_tube_server.ynvest_tube_app.views_helpers.video import get_random_words, fix_punctuation_marks
 
 wrong_method_response = JsonResponse({"summary": "Used request method is not allowed for this endpoint."}, status=405)
 
@@ -32,18 +33,6 @@ def register_user(request: WSGIRequest) -> Optional[JsonResponse]:
     return wrong_method_response
 
 
-def _load_data_from(request: WSGIRequest, *args: str) -> Union[List, str, int]:
-    """
-    Load data from request by transforming request to json. [python dict]
-
-    :param args: keys that should be in request body, if not found then None
-    :return: list of selected request body elements
-    """
-    data = json.loads(request.body)
-    rs = [data[arg] if arg in data.keys() else None for arg in args]
-    return rs if len(rs) > 1 else rs[0]
-
-
 @csrf_exempt
 def get_user(request: WSGIRequest) -> JsonResponse:
     """
@@ -52,7 +41,7 @@ def get_user(request: WSGIRequest) -> JsonResponse:
     :param request: wsgi request
     """
     if request.method == "POST":
-        user_id = _load_data_from(request, "UserId")
+        user_id = load_data_from(request, "UserId")
         u = User.objects.all().filter(id=user_id).first()
         data = {
             "summary": "Get user",
@@ -72,7 +61,7 @@ def get_user_details(request: WSGIRequest) -> Optional[JsonResponse]:
 
     """
     if request.method == "POST":
-        user_id = _load_data_from(request, "UserId")
+        user_id = load_data_from(request, "UserId")
 
         # auctions in which user participate at the moment
         u = User.objects.all().filter(id=user_id).first()
@@ -85,28 +74,12 @@ def get_user_details(request: WSGIRequest) -> Optional[JsonResponse]:
         data = {
             "summary": "Get user actual auctions and all his rents.",
             "cash": u.cash,
-            "attendingAuctions": _serialize_query_set(auctions),  # wrong name need to be changed
-            "actualRents": _serialize_query_set(active_rents),
-            "expiredRents": _serialize_query_set(inactive_rents)
+            "attendingAuctions": serialize_query_set(auctions),  # wrong name need to be changed
+            "actualRents": serialize_query_set(active_rents),
+            "expiredRents": serialize_query_set(inactive_rents)
         }
         return JsonResponse(data, status=200)
     return wrong_method_response
-
-
-def _extend_auctions_data(query_set: QuerySet, user_id: str) -> List:
-    """
-    Extends auction details by user contribution state.
-
-    :param query_set: list of auctions
-    :param user_id: UUID
-    :return:  list of auctions extended by their relation with user
-    """
-    result = []
-    for a in query_set:
-        auction_serialized = a.serialize()
-        auction_serialized['user_contribution'] = _specify_relation((a, user_id))
-        result.append(auction_serialized)
-    return result
 
 
 @csrf_exempt
@@ -117,12 +90,12 @@ def get_auctions(request: WSGIRequest) -> JsonResponse:
     """
     if request.method == "POST":
         auctions = Auction.objects.all()
-        user_id = _load_data_from(request, "UserId")
+        user_id = load_data_from(request, "UserId")
 
         data = {
             "summary": "Get all auctions",
-            "activeAuctions": _extend_auctions_data(auctions.filter(state="active"), user_id),
-            "inactiveAuctions": _serialize_query_set(auctions.filter(state="inactive")),
+            "activeAuctions": extend_auctions_data(auctions.filter(state="active"), user_id),
+            "inactiveAuctions": serialize_query_set(auctions.filter(state="inactive")),
         }
         return JsonResponse(data, status=200, safe=False)
 
@@ -131,108 +104,11 @@ def get_auctions(request: WSGIRequest) -> JsonResponse:
 
         data = {
             "summary": "Get all auctions",
-            "activeAuctions": _serialize_query_set(auctions.filter(state="active")),
-            "inactiveAuctions": _serialize_query_set(auctions.filter(state="inactive")),
+            "activeAuctions": serialize_query_set(auctions.filter(state="active")),
+            "inactiveAuctions": serialize_query_set(auctions.filter(state="inactive")),
         }
         return JsonResponse(data, status=200, safe=False)
     return wrong_method_response
-
-
-def _check_auction_post_request_cash_requirements(auction: Auction, user_query: QuerySet, bid_value: int) -> Tuple:
-    """
-    Check if auction post request requirements are fulfilled, but focus only on cash requirements.
-
-    Requirements:
-
-        - user must have enough cash for bid
-        - bid must be greater than last bid value and auction starting price
-
-    :param auction: aimed auction
-    :param user_query: query of users with special uuid
-    :param bid_value: value of new bid (try)
-    :return: response status and information about occurred error
-    """
-    data, status = {}, 0
-    user = user_query.first()
-    # check user cash in wallet
-    if user.cash < bid_value:
-        data['summary'] = 'User has not enough cash for this bet.'
-        data['userCash'] = user.cash
-        data['bidValue'] = bid_value
-        data['errorMessage'] = 'User has less cash than minimal bid value.'
-        return data, 400
-
-    last_bid = auction.last_bid_value
-    # check bid value correctness
-    if (last_bid is not None and bid_value <= last_bid) or bid_value <= auction.starting_price:
-        data['summary'] = 'Wrong bid value.'
-        data['auctionStartingPrice'] = auction.starting_price
-        data['auctionLastBidValue'] = auction.last_bid_value
-        data['bidValue'] = bid_value
-        data['errorMessage'] = 'Bid must be greater than starting price and last bid value.'
-        return data, 400
-
-    return data, status
-
-
-def _check_auction_post_request_requirements(auction: Auction, user_query: QuerySet, bid_value: int) -> Tuple:
-    """
-    Check if auction post request requirements are fulfilled.
-
-    Requirements:
-
-        - user must be registered in database
-        - auction must be active
-
-    :param auction: aimed auction
-    :param user_query: query of users with special uuid
-    :param bid_value: value of new bid (try)
-    :return: response status and information about occurred error
-    """
-    data, status = {}, 0
-    # check if auction expired
-    if auction.auction_expiration_date < timezone.now():
-        data['summary'] = 'Auction expired.'
-        data['expirationDate'] = auction.auction_expiration_date
-        return data, 404
-
-    # check if user exist
-    if not len(user_query):
-        data['summary'] = 'Wrong user UUID in body.'
-        data['errorMessage'] = 'User with that uuid does not exist in database.'
-        return data, 403
-
-    # check cash requirements
-    data, status = _check_auction_post_request_cash_requirements(auction, user_query, bid_value)
-
-    return data, status
-
-
-def _specify_relation(*args) -> int:
-    """
-    Specify relation between auction and user.
-
-    Possible results
-        0 - had not participated in auction,
-        1 - user had bid in auction, but is not winning
-        2 - user is winning auction (biggest bid)
-
-    It may be one liner but its not simply readable.
-    """
-    result = []
-    for tup in args:
-        auction, user_id = tup
-        user = User.objects.all().filter(id=user_id).first()
-        had_participated = Bids.objects.all().filter(auction=auction, user=user)
-        if had_participated:
-            is_winning = user == auction.last_bidder
-            if is_winning:
-                result.append(2)
-            else:
-                result.append(1)
-        else:
-            result.append(0)
-    return result if len(result) > 1 else result.pop()
 
 
 def _settle_auctioneers(user: User, auction: Auction, bid_value: int) -> None:
@@ -245,9 +121,9 @@ def _settle_auctioneers(user: User, auction: Auction, bid_value: int) -> None:
     :param auction: aimed auction
     :param bid_value: new bid value of current user (piercing bid)
     """
-    _settle_user(user, -bid_value)
+    settle_user(user, -bid_value)
     if auction.last_bidder:
-        _settle_user(auction.last_bidder, auction.last_bid_value)
+        settle_user(auction.last_bidder, auction.last_bid_value)
 
 
 @csrf_exempt
@@ -264,10 +140,10 @@ def get_auction(request: WSGIRequest, auction_id: int) -> JsonResponse:
     auction_query = Auction.objects.all().filter(id=auction_id)
     auction = auction_query.first()
     if request.method == "POST":
-        user_id = _load_data_from(request, "UserId")
+        user_id = load_data_from(request, "UserId")
         auction_bidders = Bids.objects.all().filter(auction=auction).values_list('user').distinct()
         serialized_auction = auction.serialize()
-        serialized_auction["user_contribution"] = _specify_relation((auction, user_id))
+        serialized_auction["user_contribution"] = specify_relation((auction, user_id))
 
         data = {
             "summary": "Get auction",
@@ -278,9 +154,9 @@ def get_auction(request: WSGIRequest, auction_id: int) -> JsonResponse:
         return JsonResponse(data, status=200)
 
     elif request.method == "PUT":
-        user_id, bid_value = _load_data_from(request, "UserId", "bidValue")
+        user_id, bid_value = load_data_from(request, "UserId", "bidValue")
         user_query = User.objects.all().filter(id=user_id)
-        error_response, error_status = _check_auction_post_request_requirements(auction, user_query, bid_value)
+        error_response, error_status = check_auction_post_request_requirements(auction, user_query, bid_value)
         if error_response and error_status:
             return JsonResponse(error_response, status=error_status)
         else:
@@ -299,16 +175,6 @@ def get_auction(request: WSGIRequest, auction_id: int) -> JsonResponse:
     return wrong_method_response
 
 
-def _serialize_query_set(query_set: QuerySet) -> List[Dict]:
-    """
-    Serializes whole query set to list of dicts
-
-    :param query_set: django query set ( 'list' of rows from table )
-    :return: list of dictionaries representing database models
-    """
-    return [obj.serialize() for obj in query_set]
-
-
 ##################################################### DEVELOPMENT ######################################################
 
 def get_users(request: WSGIRequest) -> JsonResponse:
@@ -320,7 +186,7 @@ def get_users(request: WSGIRequest) -> JsonResponse:
         qs = User.objects.all()
         data = {
             "summary": "Get all users",
-            "users": _serialize_query_set(qs)
+            "users": serialize_query_set(qs)
         }
         return JsonResponse(data, status=200, safe=False)
     return wrong_method_response
@@ -339,11 +205,12 @@ def insert_expired_rent(request: WSGIRequest) -> JsonResponse:
     :param request: wsgi request
     """
     if request.method == "POST":
-        user_id = _load_data_from(request, "UserId")
+        user_id = load_data_from(request, "UserId")
         u = User.objects.all().filter(id=user_id).first()
         v = random.choice(list(Video.objects.all()))
         sp = random.randint(10, 600)
         rtd = timezone.timedelta(days=random.randint(1, 10))
+        views_on_sold = v.views - random.randint(int(v.views * 0.75), int(v.views * 0.9))
         a = Auction(state='inactive',
                     starting_price=sp,
                     last_bid_value=sp + 1,
@@ -352,10 +219,10 @@ def insert_expired_rent(request: WSGIRequest) -> JsonResponse:
                     rental_duration=rtd,
                     auction_expiration_date=timezone.now() - timezone.timedelta(days=random.randint(7, 10)),
                     rental_expiration_date=timezone.now() - timezone.timedelta(days=random.randint(2, 4)),
-                    video_views_on_sold=v.views
+                    video_views_on_sold=views_on_sold
                     )
         a.save()
-        r = Rent(user=u, auction=a, state='inactive', profit=0)
+        r = Rent(user=u, auction=a, state='inactive', profit=v.views - views_on_sold - sp + 1)
         r.save()
         b = Bids(auction=a, user=u, value=sp + 1)
         b.save()
@@ -379,9 +246,9 @@ def get_videos(request: WSGIRequest) -> JsonResponse:
         videos = Video.objects.all()
         data = {
             "summary": "Get all videos",
-            "auctionedVideos": _serialize_query_set(videos.filter(state='auctioned')),
-            "rentedVideos": _serialize_query_set(videos.filter(state='rented')),
-            "availableVideos": _serialize_query_set(videos.filter(state='available')),
+            "auctionedVideos": serialize_query_set(videos.filter(state='auctioned')),
+            "rentedVideos": serialize_query_set(videos.filter(state='rented')),
+            "availableVideos": serialize_query_set(videos.filter(state='available')),
         }
         return JsonResponse(data, status=200, safe=False)
     return wrong_method_response
@@ -396,7 +263,7 @@ def get_bids(request: WSGIRequest) -> JsonResponse:
         bids = Bids.objects.all()
         data = {
             "summary": "Get all bids",
-            "allBids": _serialize_query_set(bids),
+            "allBids": serialize_query_set(bids),
         }
         return JsonResponse(data, status=200, safe=False)
     return wrong_method_response
@@ -412,36 +279,11 @@ def get_rents(request: WSGIRequest) -> JsonResponse:
         inactive_rents = Rent.objects.all().filter(state='inactive')
         data = {
             "summary": "Get all rents",
-            "activeRents": _serialize_query_set(active_rents),
-            "inactiveRents": _serialize_query_set(inactive_rents),
+            "activeRents": serialize_query_set(active_rents),
+            "inactiveRents": serialize_query_set(inactive_rents),
         }
         return JsonResponse(data, status=200, safe=False)
     return wrong_method_response
-
-
-def get_random_words(n: int, word_site: str = "https://www.mit.edu/~ecprice/wordlist.10000") -> List[str]:
-    """
-    Returns random words from word_site
-
-    :param n: quantity of random words
-    :param word_site: english dictionary
-    :return: list of random words from word_site
-    """
-    response = requests.get(word_site)
-    result = [x.decode('utf-8') for x in random.sample(list(response.content.splitlines()), n)]
-    return get_random_words(n) if not result else result
-
-
-def _fix_punctuation_marks(text: str) -> str:
-    """
-    Changing not parsed quotes and ampersands to correct form.
-
-    :param text: string containing not parsed symbols
-    :return: string with parsed & and '
-    """
-    text = text.replace('&quot;', '"')
-    text = text.replace('&#39;', '"')
-    return text.replace('&amp;', '&')
 
 
 @csrf_exempt
@@ -461,8 +303,8 @@ def insert_youtube_videos(request: WSGIRequest):
         video_statistics = youtube.videos().list(id=videos_id_string, part='statistics')
         stats = video_statistics.execute()
         for v_snip, v_stats in zip(snippets["items"], stats["items"]):
-            v = Video(title=_fix_punctuation_marks(v_snip['snippet']['title']),
-                      description=_fix_punctuation_marks(v_snip['snippet']['description']),
+            v = Video(title=fix_punctuation_marks(v_snip['snippet']['title']),
+                      description=fix_punctuation_marks(v_snip['snippet']['description']),
                       link=v_snip['id']['videoId'],
                       likes=v_stats['statistics']['likeCount'],
                       views=v_stats['statistics']['viewCount'],
@@ -470,7 +312,7 @@ def insert_youtube_videos(request: WSGIRequest):
                       )
             v.save()
 
-        print(f'Inserted videos{[_fix_punctuation_marks(v["snippet"]["title"]) for v in snippets["items"]]}')
+        print(f'Inserted videos{[fix_punctuation_marks(v["snippet"]["title"]) for v in snippets["items"]]}')
 
     return redirect('get_videos')
 

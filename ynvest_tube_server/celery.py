@@ -15,11 +15,11 @@ app.conf.beat_schedule = {
     },
     'settle-rents': {
         'task': 'settle_rents',
-        'schedule': 1.0,
+        'schedule': 10.0,
     },
     'generate-auction': {
         'task': 'generate_auction',
-        'schedule': 60.0,
+        'schedule': 60.0 * 10,
         # 'args': (16, 16)
     },
     'payout-loyalty': {

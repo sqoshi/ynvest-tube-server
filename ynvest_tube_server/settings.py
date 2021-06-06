@@ -29,7 +29,7 @@ SECRET_KEY = 'django-insecure-&u9vlo(iz^0km^#$sd@+wt+hgy6ha55qjm8i$m=ni++46sf2ov
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["10.0.2.2", "localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["10.0.2.2", "localhost", "127.0.0.1", "192.168.100.7", "0.0.0.0"]
 
 # Application definition
 
@@ -135,14 +135,6 @@ SWAGGER_YAML_FILENAME = '/docs/index.yml'
 CELERY_BROKER_URL = 'redis://localhost:6379'
 # CELERY_TIMEZONE = "Europe/Warsaw"
 CELERY_TASK_TRACK_STARTED = True
-# CELERY_TASK_TIME_LIMIT = 30 * 60
-
-# CELERY_BEAT_SCHEDULE = {
-#     'ynvest_tube_app': {
-#         'task': 'print_auctions',
-#         'schedule': crontab(minute=1, hour=0),
-#     },
-# }
 
 # youtube
 youtube = build('youtube', 'v3', developerKey=api_key)
