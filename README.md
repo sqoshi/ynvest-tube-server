@@ -7,12 +7,10 @@
 Server for mobile game [YnvestTube](https://github.com/sqoshi/ynvest-tube). Instructions included in this article
 concern Linux systems.
 
-
-
 # Table of contests
 
 - [Endpoints](#endpoints)
-- [Installation](#installation)
+- [Installation](#installation) 
    - [Automatic](#automatic)
    - [Manual](#manual)
 - [Launch](#launch)
