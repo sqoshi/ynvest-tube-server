@@ -49,9 +49,9 @@ def collect_videos_statistics(objects: List, result_limit: int = 50) -> List:
 
     for i in range(result_limit, iterations_ + result_limit, result_limit):
         upper_limit = iterations_ if i > iterations_ else i
-        videos_id_str = ','.join([x.link for x in objects[i - result_limit:upper_limit]])
-        response = youtube.videos().list(id=videos_id_str, part='statistics').execute()
-        videos_statistics.extend(response['items'])
+        videos_id_str = ",".join([x.link for x in objects[i - result_limit : upper_limit]])
+        response = youtube.videos().list(id=videos_id_str, part="statistics").execute()
+        videos_statistics.extend(response["items"])
 
     return videos_statistics
 
@@ -79,6 +79,6 @@ def deactivate_rent(rent: Rent, views_diff: int) -> None:
     Deactivate rent in system
 
     """
-    rent.state = 'inactive'
+    rent.state = "inactive"
     rent.profit = views_diff - rent.auction.last_bid_value
     rent.save()

@@ -19,9 +19,9 @@ from django.urls import path, include
 from swagger_render.views import SwaggerUIView
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', include('ynvest_tube_server.ynvest_tube_app.urls')),
-    path('', SwaggerUIView.as_view()),
+    path("admin/", admin.site.urls),
+    path("", include("ynvest_tube_server.ynvest_tube_app.urls")),
+    path("", SwaggerUIView.as_view()),
 ]
 
-urlpatterns += static('/docs/', document_root='docs')
+urlpatterns += static("/docs/", document_root="docs")
